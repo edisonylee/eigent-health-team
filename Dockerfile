@@ -12,6 +12,11 @@ WORKDIR /app
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
+# Some CAMEL deps (psutil, etc.) compile C extensions from source.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends build-essential python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY pyproject.toml uv.lock ./
 RUN uv sync --no-dev
 
