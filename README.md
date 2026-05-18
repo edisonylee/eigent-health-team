@@ -65,17 +65,46 @@ cp .env.example .env           # then add your OPENAI_API_KEY
 uv run python -m src.main "your startup idea here"
 ```
 
+## Web app
+
+The same Workforce, wrapped in a web UI that streams progress live — a FastAPI
+backend and a React + React Flow frontend. The agent graph lights up node by node
+as each worker runs, with token-by-token streaming, and the memo renders at the end.
+
+```bash
+# backend (terminal 1)
+APP_PASSWORD=demo123 uv run uvicorn backend.server:app --port 8000
+
+# frontend (terminal 2)
+cd frontend && npm install && npm run dev
+# open the Vite URL, enter the password, submit an idea
+```
+
+The backend serves the built frontend in production, so the whole thing deploys as a
+**single Docker service** (see `Dockerfile` + `render.yaml`). Two env vars:
+`OPENAI_API_KEY` and `APP_PASSWORD` (a gate on the page).
+
+Stack: FastAPI · Uvicorn · SSE step events · React · TypeScript · Zustand · React
+Flow · Tailwind — the same shape as Eigent's own desktop product.
+
 ## Project layout
 
 ```
 eigent-startup-team/
 ├── pyproject.toml          # uv-managed deps
 ├── .env.example            # OPENAI_API_KEY
-├── src/
+├── src/                    # core CAMEL logic — powers both the CLI and the web app
 │   ├── schema.py           # Pydantic Critique — the Critic's typed output
 │   ├── agents.py           # the four ChatAgent builders + system prompts
 │   ├── workforce.py        # wires the agents into a CAMEL Workforce
 │   └── main.py             # CLI: idea -> memo
+├── backend/                # FastAPI app — runs the Workforce, streams SSE events
+│   ├── events.py           # typed RunEvent model
+│   ├── runner.py           # async runner + stream callback + rate limit
+│   └── server.py           # routes + serves the built frontend
+├── frontend/               # React + React Flow + Zustand (Vite + TS)
+├── Dockerfile              # multi-stage build — one deployable service
+├── render.yaml             # Render deploy config
 ├── outputs/                # generated memos
 └── evals/                  # deterministic + LLM-judge evals (Day B)
 ```

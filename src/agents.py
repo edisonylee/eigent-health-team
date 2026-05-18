@@ -12,12 +12,16 @@ from camel.types import ModelPlatformType, ModelType
 from .schema import Critique
 
 
-def _model():
-    """One model backend per agent. Low temperature — this is analysis, not prose."""
+def _model(stream: bool = False):
+    """One model backend per agent. Low temperature — this is analysis, not prose.
+
+    stream=True enables token streaming so the Workforce stream callback emits
+    incremental chunks (used by the web UI). The CLI leaves it False.
+    """
     return ModelFactory.create(
         model_platform=ModelPlatformType.OPENAI,
         model_type=ModelType.GPT_4O,
-        model_config_dict={"temperature": 0.2},
+        model_config_dict={"temperature": 0.2, "stream": stream},
     )
 
 
@@ -47,24 +51,26 @@ market memo in markdown. Sections, in order: Idea, Market, Competition,
 Risks, Verdict. No fluff — the reader is a busy investor."""
 
 
-def researcher_agent() -> ChatAgent:
+def researcher_agent(stream: bool = False) -> ChatAgent:
     search = FunctionTool(SearchToolkit().search_duckduckgo)
-    return ChatAgent(system_message=RESEARCHER_PROMPT, model=_model(), tools=[search])
+    return ChatAgent(
+        system_message=RESEARCHER_PROMPT, model=_model(stream), tools=[search]
+    )
 
 
-def analyst_agent() -> ChatAgent:
-    return ChatAgent(system_message=ANALYST_PROMPT, model=_model())
+def analyst_agent(stream: bool = False) -> ChatAgent:
+    return ChatAgent(system_message=ANALYST_PROMPT, model=_model(stream))
 
 
-def critic_agent() -> ChatAgent:
+def critic_agent(stream: bool = False) -> ChatAgent:
     """The Critic. Used inside the Workforce as a worker, and called directly
     (with response_format=Critique) by the deterministic eval to get a typed
     Critique object back."""
-    return ChatAgent(system_message=CRITIC_PROMPT, model=_model())
+    return ChatAgent(system_message=CRITIC_PROMPT, model=_model(stream))
 
 
-def summarizer_agent() -> ChatAgent:
-    return ChatAgent(system_message=SUMMARIZER_PROMPT, model=_model())
+def summarizer_agent(stream: bool = False) -> ChatAgent:
+    return ChatAgent(system_message=SUMMARIZER_PROMPT, model=_model(stream))
 
 
 __all__ = [

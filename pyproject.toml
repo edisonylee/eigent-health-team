@@ -9,6 +9,9 @@ dependencies = [
     "ddgs>=9.0",
     "python-dotenv>=1.0",
     "pydantic>=2.0",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "sse-starlette>=2.1",
 ]
 
 [tool.uv]

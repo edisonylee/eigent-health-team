@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: eigent-startup-team
+    runtime: docker
+    plan: free
+    envVars:
+      # Set these in the Render dashboard — never committed.
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: APP_PASSWORD
+        sync: false

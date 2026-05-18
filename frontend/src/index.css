@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Lightweight memo styling — avoids pulling in the typography plugin. */
+.memo h1 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0.25rem 0 0.5rem;
+  color: #1c1917;
+}
+.memo h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 1rem 0 0.35rem;
+  color: #44403c;
+}
+.memo p {
+  margin: 0.4rem 0;
+  font-size: 0.875rem;
+  line-height: 1.65;
+  color: #44403c;
+}
+.memo ul,
+.memo ol {
+  margin: 0.4rem 0;
+  padding-left: 1.15rem;
+  font-size: 0.875rem;
+  color: #44403c;
+}
+.memo ul {
+  list-style: disc;
+}
+.memo ol {
+  list-style: decimal;
+}
+.memo li {
+  margin: 0.2rem 0;
+}
+.memo strong {
+  font-weight: 600;
+  color: #1c1917;
+}
