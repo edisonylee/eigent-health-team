@@ -55,11 +55,11 @@ def _role_for(description: str) -> Optional[str]:
     d = description.lower()
     if "research" in d:
         return "researcher"
-    if "analyst" in d or "analy" in d:
+    if "assess" in d or "analy" in d:
         return "analyst"
-    if "critic" in d:
+    if "safety" in d or "review" in d:
         return "critic"
-    if "summar" in d:
+    if "plan" in d or "writ" in d or "summar" in d:
         return "summarizer"
     return None
 
@@ -104,9 +104,10 @@ async def _run(task_id: str, idea: str) -> None:
 
         task = Task(
             content=(
-                "Produce a structured one-page market memo for this startup "
-                "idea. Research it, analyze the market, critique the "
-                f"assumptions, and write the final memo.\n\nIdea: {idea}"
+                "Produce a structured personalized health plan for this "
+                "person. Research evidence-based guidance, assess their focus "
+                "areas, review the plan for safety, and write the final "
+                f"plan.\n\nProfile: {idea}"
             ),
             id="root",
         )

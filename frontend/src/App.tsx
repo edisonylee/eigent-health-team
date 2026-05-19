@@ -51,21 +51,27 @@ export default function App() {
   return (
     <div className="min-h-screen bg-stone-100 px-6 py-8">
       <div className="mx-auto max-w-5xl">
-        <header className="mb-6">
+        <header className="mb-4">
           <h1 className="font-serif text-2xl text-stone-900">
-            Startup Research Team
+            Personalized Health Team
           </h1>
           <p className="text-sm text-stone-500">
-            A four-agent CAMEL Workforce — research, analysis, critique, memo.
+            A four-agent CAMEL Workforce — research, assessment, safety review, plan.
           </p>
         </header>
+
+        <div className="mb-5 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          Educational information only — not medical advice, and not a substitute
+          for a qualified healthcare professional. Seek prompt care for any
+          concerning symptoms.
+        </div>
 
         <div className="mb-5 flex gap-2">
           <input
             value={idea}
             onChange={(e) => setIdea(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && run()}
-            placeholder="A startup idea — e.g. AI meal planner for college students, $5/mo"
+            placeholder="Describe yourself — age, lifestyle, goals, any concerns. e.g. 34, desk job, want more energy and to lose 10 lbs, mild back pain"
             disabled={running}
             className="flex-1 rounded-md border border-stone-300 bg-white px-3 py-2 text-sm outline-none focus:border-stone-500 disabled:bg-stone-50"
           />

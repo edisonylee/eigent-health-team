@@ -10,10 +10,10 @@ export const ROLE_ORDER: Role[] = [
 ];
 
 export const ROLE_LABEL: Record<Role, string> = {
-  researcher: "Researcher",
-  analyst: "Market Analyst",
-  critic: "Critic",
-  summarizer: "Summarizer",
+  researcher: "Health Researcher",
+  analyst: "Health Assessor",
+  critic: "Safety Reviewer",
+  summarizer: "Plan Writer",
 };
 
 export type Status = "pending" | "running" | "done";

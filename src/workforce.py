@@ -8,10 +8,10 @@ worker fits, using each worker's `description` to route.
 from camel.societies.workforce import Workforce
 
 from .agents import (
-    analyst_agent,
-    critic_agent,
-    researcher_agent,
-    summarizer_agent,
+    health_assessor_agent,
+    health_researcher_agent,
+    plan_writer_agent,
+    safety_reviewer_agent,
 )
 
 
@@ -22,27 +22,29 @@ def build_workforce(stream: bool = False) -> Workforce:
     show incremental output via the Workforce stream callback. The CLI uses
     the default (False).
     """
-    wf = Workforce("Startup research team — turns a startup idea into a market memo")
+    wf = Workforce(
+        "Personalized health team — turns a profile into a personalized health plan"
+    )
 
     wf.add_single_agent_worker(
-        "Researcher — gathers concrete, recent market signals using web search. "
-        "Use for any subtask that needs facts from the web.",
-        worker=researcher_agent(stream),
+        "Health Researcher — gathers evidence-based, current health information "
+        "using web search. Use for any subtask that needs facts from the web.",
+        worker=health_researcher_agent(stream),
     )
     wf.add_single_agent_worker(
-        "Market Analyst — evaluates market size, competition, demand, and unit "
-        "economics. Use for reasoning over research, not for gathering it.",
-        worker=analyst_agent(stream),
+        "Health Assessor — analyzes the profile against the research and picks "
+        "the highest-impact focus areas. Use for reasoning, not for gathering.",
+        worker=health_assessor_agent(stream),
     )
     wf.add_single_agent_worker(
-        "Critic — surfaces risks and weak assumptions, then gives a verdict of "
-        "strong / mixed / weak. Use to pressure-test the analysis.",
-        worker=critic_agent(stream),
+        "Safety Reviewer — reviews the plan for risks, contraindications, and "
+        "red flags, then gives a safety verdict. Use to pressure-test the plan.",
+        worker=safety_reviewer_agent(stream),
     )
     wf.add_single_agent_worker(
-        "Summarizer — writes the final one-page market memo in markdown. Use "
-        "last, to assemble everything into the deliverable.",
-        worker=summarizer_agent(stream),
+        "Plan Writer — writes the final personalized health plan in markdown. "
+        "Use last, to assemble everything into the deliverable.",
+        worker=plan_writer_agent(stream),
     )
 
     return wf

@@ -1,8 +1,9 @@
 """CLI entry point.
 
-    python -m src.main "subscription socks for cats, $12/mo"
+    python -m src.main "34, desk job, want more energy and to lose 10 lbs"
 
-Runs the four-agent Workforce and writes the resulting memo to outputs/.
+Runs the four-agent Workforce and writes the resulting health plan to outputs/.
+This is educational information, not medical advice.
 """
 
 import datetime
@@ -16,41 +17,42 @@ from camel.tasks import Task
 from .workforce import build_workforce
 
 
-def _slug(idea: str) -> str:
-    words = "".join(c if c.isalnum() or c == " " else "" for c in idea).split()
-    return "-".join(words[:5]).lower() or "idea"
+def _slug(profile: str) -> str:
+    words = "".join(c if c.isalnum() or c == " " else "" for c in profile).split()
+    return "-".join(words[:5]).lower() or "profile"
 
 
 def main() -> None:
     load_dotenv()
 
     if len(sys.argv) < 2 or not sys.argv[1].strip():
-        print('usage: python -m src.main "your startup idea"')
+        print('usage: python -m src.main "your profile — age, lifestyle, goals"')
         sys.exit(1)
 
-    idea = sys.argv[1].strip()
-    print(f"\nresearching: {idea}\n" + "-" * 48)
+    profile = sys.argv[1].strip()
+    print(f"\nbuilding a plan for: {profile}\n" + "-" * 48)
 
     wf = build_workforce()
     task = Task(
         content=(
-            "Produce a structured one-page market memo for this startup idea. "
-            "Research it, analyze the market, critique the assumptions, and "
-            f"write the final memo.\n\nIdea: {idea}"
+            "Produce a structured personalized health plan for this person. "
+            "Research evidence-based guidance, assess their focus areas, "
+            "review the plan for safety, and write the final plan.\n\n"
+            f"Profile: {profile}"
         ),
         id="root",
     )
 
     result = wf.process_task(task)
-    memo = result.result or "(no result produced)"
+    plan = result.result or "(no result produced)"
 
     outputs = pathlib.Path("outputs")
     outputs.mkdir(exist_ok=True)
     stamp = datetime.datetime.now().strftime("%Y-%m-%dT%H-%M")
-    out = outputs / f"{stamp}-{_slug(idea)}.md"
-    out.write_text(memo)
+    out = outputs / f"{stamp}-{_slug(profile)}.md"
+    out.write_text(plan)
 
-    print(f"\n--- MEMO ---\n\n{memo}\n")
+    print(f"\n--- HEALTH PLAN ---\n\n{plan}\n")
     print("-" * 48 + f"\nsaved -> {out}")
 
 

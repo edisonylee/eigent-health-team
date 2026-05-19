@@ -1,26 +1,33 @@
-# Eigent Startup Research Team
+# Eigent Health Team
 
-A four-agent [CAMEL](https://github.com/camel-ai/camel) **Workforce** that turns a one-line
-startup idea into a structured market memo.
+A four-agent [CAMEL](https://github.com/camel-ai/camel) **Workforce** that turns a
+short personal profile into a structured, personalized health plan.
+
+> **Educational information only.** This project is not medical advice and not a
+> substitute for a qualified healthcare professional. It does not diagnose. Always
+> consult a clinician before changing your health routine, and seek prompt care for
+> any concerning symptoms.
 
 ```
-python -m src.main "subscription socks for cats, $12/mo"
+python -m src.main "34, desk job, want more energy and to lose 10 lbs, mild back pain"
 ```
 
 ```
-researching: subscription socks for cats, $12/mo
+building a plan for: 34, desk job, want more energy and to lose 10 lbs, mild back pain
 ------------------------------------------------
 
---- MEMO ---
+--- HEALTH PLAN ---
 
-# Market Memo — Subscription Socks for Cats
-## Idea ...
-## Market ...
-## Competition ...
-## Risks ...
-## Verdict — weak
+# Personalized Health Plan
+## Your Profile ...
+## Focus Areas ...
+## Nutrition ...
+## Movement ...
+## Sleep & Recovery ...
+## Safety Notes ...
+## When to See a Professional ...
 
-saved -> outputs/2026-05-18T14-30-subscription-socks-for-cats.md
+saved -> outputs/2026-05-19T10-30-34-desk-job-want-more.md
 ```
 
 ## How it works
@@ -33,28 +40,30 @@ dispatches subtasks to four specialized `ChatAgent` workers:
               │  Workforce               │
               │  coordinator + planner   │
               └────────────┬─────────────┘
-        ┌────────────┬─────┴──────┬────────────┐
+        ┌────────────┬──────┴─────┬────────────┐
         ▼            ▼            ▼            ▼
-   ┌─────────┐  ┌─────────┐  ┌────────┐  ┌────────────┐
-   │Researcher│ │ Analyst │  │ Critic │  │ Summarizer │
-   │+ web tool│ │         │  │        │  │            │
-   └─────────┘  └─────────┘  └────────┘  └────────────┘
+  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────────┐
+  │  Health  │ │  Health  │ │  Safety  │ │    Plan    │
+  │Researcher│ │ Assessor │ │ Reviewer │ │   Writer   │
+  │+ web tool│ │          │ │          │ │            │
+  └──────────┘ └──────────┘ └──────────┘ └────────────┘
         └────────────┴────────────┴────────────┘
                       ▼
             shared task context (Workforce memory)
                       ▼
-                market memo (markdown)
+              personalized health plan (markdown)
 ```
 
 | Agent | Role | Tool |
 |---|---|---|
-| **Researcher** | Gathers concrete, recent market signals — market size, competitors, pricing, demand, regulation. | DuckDuckGo web search (`SearchToolkit`) |
-| **Market Analyst** | Reasons over the research: TAM, competitive intensity, demand strength, unit economics. | — |
-| **Critic** | Surfaces real risks and weak assumptions; returns a `strong` / `mixed` / `weak` verdict. | — |
-| **Summarizer** | Assembles everything into a one-page markdown memo. | — |
+| **Health Researcher** | Gathers evidence-based, current health information relevant to the person's goals. | DuckDuckGo web search (`SearchToolkit`) |
+| **Health Assessor** | Reviews the profile against the research; picks the highest-impact, realistic focus areas. | — |
+| **Safety Reviewer** | Surfaces risks, contraindications, and red flags; returns a `safe-to-follow` / `follow-with-caution` / `consult-first` verdict. | — |
+| **Plan Writer** | Assembles everything into a structured health-plan in markdown. | — |
 
-The Critic's output is modeled as a typed schema — see [`src/schema.py`](src/schema.py).
-That `Critique` type is what the deterministic eval (Day B) asserts against.
+The Safety Reviewer's output is modeled as a typed schema — see
+[`src/schema.py`](src/schema.py). That `SafetyReview` type is what the deterministic
+eval asserts against.
 
 ## Run it
 
@@ -62,14 +71,14 @@ That `Critique` type is what the deterministic eval (Day B) asserts against.
 # 1. install uv (one-time):  curl -LsSf https://astral.sh/uv/install.sh | sh
 uv sync                        # create .venv and install deps
 cp .env.example .env           # then add your OPENAI_API_KEY
-uv run python -m src.main "your startup idea here"
+uv run python -m src.main "your profile — age, lifestyle, goals, concerns"
 ```
 
 ## Web app
 
 The same Workforce, wrapped in a web UI that streams progress live — a FastAPI
 backend and a React + React Flow frontend. The agent graph lights up node by node
-as each worker runs, with token-by-token streaming, and the memo renders at the end.
+as each worker runs, with token-by-token streaming, and the plan renders at the end.
 
 ```bash
 # backend (terminal 1)
@@ -77,7 +86,7 @@ APP_PASSWORD=demo123 uv run uvicorn backend.server:app --port 8000
 
 # frontend (terminal 2)
 cd frontend && npm install && npm run dev
-# open the Vite URL, enter the password, submit an idea
+# open the Vite URL, enter the password, submit a profile
 ```
 
 The backend serves the built frontend in production, so the whole thing deploys as a
@@ -90,14 +99,14 @@ Flow · Tailwind — the same shape as Eigent's own desktop product.
 ## Project layout
 
 ```
-eigent-startup-team/
+eigent-health-team/
 ├── pyproject.toml          # uv-managed deps
 ├── .env.example            # OPENAI_API_KEY
 ├── src/                    # core CAMEL logic — powers both the CLI and the web app
-│   ├── schema.py           # Pydantic Critique — the Critic's typed output
+│   ├── schema.py           # Pydantic SafetyReview — the Safety Reviewer's typed output
 │   ├── agents.py           # the four ChatAgent builders + system prompts
 │   ├── workforce.py        # wires the agents into a CAMEL Workforce
-│   └── main.py             # CLI: idea -> memo
+│   └── main.py             # CLI: profile -> health plan
 ├── backend/                # FastAPI app — runs the Workforce, streams SSE events
 │   ├── events.py           # typed RunEvent model
 │   ├── runner.py           # async runner + stream callback + rate limit
@@ -105,20 +114,20 @@ eigent-startup-team/
 ├── frontend/               # React + React Flow + Zustand (Vite + TS)
 ├── Dockerfile              # multi-stage build — one deployable service
 ├── render.yaml             # Render deploy config
-├── outputs/                # generated memos
-└── evals/                  # deterministic + LLM-judge evals (Day B)
+├── outputs/                # generated health plans
+└── evals/                  # deterministic + LLM-judge evals
 ```
 
 ## Known limitations
 
 Honest about these — every multi-agent system has them:
 
-1. **Sequential latency.** Research → analysis → critique → memo is a chain; a full
-   run takes tens of seconds. Researcher and Analyst could overlap for some idea types.
-2. **Critic anchoring.** The Critic reasons over the Researcher's framing, so it can
-   inherit the Researcher's blind spots. An independent fact-check pass would help.
+1. **Sequential latency.** Research → assessment → safety review → plan is a chain; a
+   full run takes tens of seconds.
+2. **Safety Reviewer anchoring.** The reviewer reasons over upstream framing, so it can
+   inherit blind spots. An independent red-flag pass would strengthen it.
 3. **Search quality.** DuckDuckGo's free endpoint returns sparse results for niche
-   queries. Swapping in Tavily or Exa would make the research more reliable.
+   queries. Swapping in a medical-literature source would make the research stronger.
 
 ## Built for
 

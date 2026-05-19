@@ -3,20 +3,20 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
-class Critique(BaseModel):
-    """Typed output of the Critic agent.
+class SafetyReview(BaseModel):
+    """Typed output of the Safety Reviewer agent.
 
-    Defining the critique as a schema (not free text) is what lets the
-    deterministic eval in evals/ assert on the Critic's behavior.
+    Defining the review as a schema (not free text) is what lets the
+    deterministic eval in evals/ assert on the reviewer's behavior.
     """
 
     risks: list[str] = Field(
-        description="Concrete, specific risks to the business. Not generic platitudes."
+        description="Concrete health risks or things to be cautious about in the plan."
     )
-    weak_assumptions: list[str] = Field(
-        description="Assumptions baked into the pitch that may not hold."
+    consult_a_professional: list[str] = Field(
+        description="Specific things the person should discuss with a real clinician."
     )
-    verdict: Literal["strong", "mixed", "weak"]
+    verdict: Literal["safe-to-follow", "follow-with-caution", "consult-first"]
     one_line_summary: str = Field(
         description="A single sentence justifying the verdict."
     )

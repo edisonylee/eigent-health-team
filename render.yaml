@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: eigent-startup-team
+    name: eigent-health-team
     runtime: docker
     plan: free
     envVars:

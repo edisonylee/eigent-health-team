@@ -18,7 +18,7 @@ export default function Gate() {
     <div className="flex min-h-screen items-center justify-center bg-stone-100">
       <div className="w-80 rounded-xl border border-stone-200 bg-white p-6 shadow-sm">
         <h1 className="font-serif text-lg text-stone-900">
-          Startup Research Team
+          Personalized Health Team
         </h1>
         <p className="mt-1 text-xs text-stone-500">
           Enter the access password to continue.

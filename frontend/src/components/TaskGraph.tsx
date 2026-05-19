@@ -39,7 +39,7 @@ export default function TaskGraph() {
     const memo: Node = {
       id: "memo",
       position: { x: 380, y: 320 },
-      data: { label: done ? "Market Memo  ✓" : "Market Memo" },
+      data: { label: done ? "Health Plan  ✓" : "Health Plan" },
       draggable: false,
       style: {
         background: done ? "#d1fae5" : "#f5f5f4",

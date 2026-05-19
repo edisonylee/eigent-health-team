@@ -9,7 +9,8 @@ export default function MemoPanel() {
   if (phase === "running") {
     return (
       <div className="rounded-xl border border-stone-200 bg-white p-6 text-sm text-stone-500">
-        Agents are working — the memo will appear here when the Summarizer finishes.
+        Agents are working — your health plan will appear here when the Plan
+        Writer finishes.
       </div>
     );
   }
