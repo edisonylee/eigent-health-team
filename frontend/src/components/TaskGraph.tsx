@@ -12,13 +12,24 @@ export default function TaskGraph() {
 
   const nodes: Node[] = useMemo(() => {
     const xs = [20, 250, 480, 710];
-    const workerNodes: Node[] = ROLE_ORDER.map((role, i) => ({
-      id: role,
-      type: "worker",
-      position: { x: xs[i], y: 150 },
-      data: { role, status: workers[role].status, text: workers[role].text },
-      draggable: false,
-    }));
+    const workerNodes: Node[] = ROLE_ORDER.map((role, i) => {
+      const w = workers[role];
+      return {
+        id: role,
+        type: "worker",
+        position: { x: xs[i], y: 150 },
+        data: {
+          role,
+          status: w.status,
+          text: w.text,
+          promptTokens: w.promptTokens,
+          completionTokens: w.completionTokens,
+          cost: w.cost,
+          toolCallCount: w.toolCalls.length,
+        },
+        draggable: false,
+      };
+    });
 
     const coordinator: Node = {
       id: "coordinator",

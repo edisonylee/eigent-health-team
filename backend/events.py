@@ -6,6 +6,8 @@ EventType = Literal[
     "task_started",
     "worker_running",
     "worker_chunk",
+    "worker_usage",
+    "tool_call",
     "task_complete",
     "error",
 ]
@@ -18,7 +20,8 @@ class RunEvent(BaseModel):
     """One server-sent event in a run's lifecycle.
 
     Mirrors the typed step events an Eigent-style frontend consumes: a type,
-    the role it concerns, and a payload (incremental text, or the final memo).
+    the role it concerns, and a payload. Optional fields carry usage and
+    tool-call info; consumers read only the fields relevant to each event type.
     """
 
     type: EventType
@@ -26,3 +29,10 @@ class RunEvent(BaseModel):
     text: str = ""
     mode: Optional[str] = None  # "delta" or "accumulate", for worker_chunk
     memo: Optional[str] = None
+    # worker_usage:
+    prompt_tokens: Optional[int] = None  # cumulative for this worker
+    completion_tokens: Optional[int] = None  # cumulative for this worker
+    cost: Optional[float] = None  # cumulative for this worker, USD
+    # tool_call:
+    tool_name: Optional[str] = None
+    tool_query: Optional[str] = None

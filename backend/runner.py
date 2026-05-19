@@ -1,21 +1,34 @@
 """Runs a Workforce for the web UI and streams its progress as events.
 
-Each run gets an asyncio.Queue. The Workforce stream callback pushes chunk
-events onto it (thread-safe — the callback may fire from a worker thread).
-The SSE endpoint in server.py drains the queue.
+Each run gets an asyncio.Queue. Two callbacks push events onto it:
+  - the Workforce stream callback (token chunks per worker)
+  - each ChatAgent's `on_request_usage` callback (per-request token usage)
+A wrapped search tool also emits `tool_call` events when the Researcher hits
+the web. All callbacks are thread-safe — they may fire from worker threads.
 """
 
 import asyncio
+import functools
 import re
 import time
 import uuid
-from typing import AsyncIterator, Optional
+from collections import defaultdict
+from typing import Any, AsyncIterator, Callable, Dict, Optional
 
+from camel.agents import ChatAgent
+from camel.societies.workforce import Workforce
 from camel.tasks import Task
+from camel.toolkits import FunctionTool, SearchToolkit
 
-from src.workforce import build_workforce
+from src.agents import (
+    ASSESSOR_PROMPT,
+    PLAN_PROMPT,
+    RESEARCHER_PROMPT,
+    SAFETY_PROMPT,
+    _model,
+)
 
-from .events import ROLES, RunEvent
+from .events import RunEvent
 
 # task_id -> event queue. `None` on the queue is the close sentinel.
 _queues: dict[str, asyncio.Queue] = {}
@@ -23,6 +36,10 @@ _queues: dict[str, asyncio.Queue] = {}
 # Cheap global rate limit — protects the shared OpenAI key behind the gate.
 _RUN_TIMES: list[float] = []
 _MAX_RUNS_PER_HOUR = 20
+
+# GPT-4o pricing (USD / 1M tokens). Update if rates change.
+_INPUT_PER_M = 2.50
+_OUTPUT_PER_M = 10.00
 
 
 def rate_limited() -> bool:
@@ -64,6 +81,113 @@ def _role_for(description: str) -> Optional[str]:
     return None
 
 
+def _wrap_search_tool(
+    emit: Callable[[RunEvent], None],
+) -> FunctionTool:
+    """Wrap SearchToolkit.search_duckduckgo to emit a tool_call event per call."""
+    real = SearchToolkit().search_duckduckgo
+
+    @functools.wraps(real)
+    def search_duckduckgo(*args: Any, **kwargs: Any):
+        query = kwargs.get("query", args[0] if args else "")
+        emit(
+            RunEvent(
+                type="tool_call",
+                role="researcher",
+                tool_name="search_duckduckgo",
+                tool_query=str(query),
+            )
+        )
+        return real(*args, **kwargs)
+
+    return FunctionTool(search_duckduckgo)
+
+
+def _usage_callback(
+    role: str,
+    totals: Dict[str, Dict[str, int]],
+    emit: Callable[[RunEvent], None],
+) -> Callable[[Dict[str, Any]], None]:
+    """Per-worker on_request_usage hook: accumulate tokens and emit cumulative usage."""
+
+    def cb(payload: Dict[str, Any]) -> None:
+        u = payload.get("request_usage", {}) or {}
+        bucket = totals[role]
+        bucket["prompt_tokens"] += int(u.get("prompt_tokens") or 0)
+        bucket["completion_tokens"] += int(u.get("completion_tokens") or 0)
+        cost = (
+            bucket["prompt_tokens"] * _INPUT_PER_M / 1_000_000
+            + bucket["completion_tokens"] * _OUTPUT_PER_M / 1_000_000
+        )
+        emit(
+            RunEvent(
+                type="worker_usage",
+                role=role,
+                prompt_tokens=bucket["prompt_tokens"],
+                completion_tokens=bucket["completion_tokens"],
+                cost=cost,
+            )
+        )
+
+    return cb
+
+
+def _build_instrumented_workforce(
+    emit: Callable[[RunEvent], None],
+    totals: Dict[str, Dict[str, int]],
+) -> Workforce:
+    """Build the Workforce with usage callbacks pinned to each worker and a
+    tool-call-emitting wrapper around the search tool."""
+    search_tool = _wrap_search_tool(emit)
+
+    researcher = ChatAgent(
+        system_message=RESEARCHER_PROMPT,
+        model=_model(stream=True),
+        tools=[search_tool],
+        on_request_usage=_usage_callback("researcher", totals, emit),
+    )
+    assessor = ChatAgent(
+        system_message=ASSESSOR_PROMPT,
+        model=_model(stream=True),
+        on_request_usage=_usage_callback("analyst", totals, emit),
+    )
+    reviewer = ChatAgent(
+        system_message=SAFETY_PROMPT,
+        model=_model(stream=True),
+        on_request_usage=_usage_callback("critic", totals, emit),
+    )
+    writer = ChatAgent(
+        system_message=PLAN_PROMPT,
+        model=_model(stream=True),
+        on_request_usage=_usage_callback("summarizer", totals, emit),
+    )
+
+    wf = Workforce(
+        "Personalized health team — turns a profile into a personalized health plan"
+    )
+    wf.add_single_agent_worker(
+        "Health Researcher — gathers evidence-based, current health information "
+        "using web search. Use for any subtask that needs facts from the web.",
+        worker=researcher,
+    )
+    wf.add_single_agent_worker(
+        "Health Assessor — analyzes the profile against the research and picks "
+        "the highest-impact focus areas. Use for reasoning, not for gathering.",
+        worker=assessor,
+    )
+    wf.add_single_agent_worker(
+        "Safety Reviewer — reviews the plan for risks, contraindications, and "
+        "red flags, then gives a safety verdict. Use to pressure-test the plan.",
+        worker=reviewer,
+    )
+    wf.add_single_agent_worker(
+        "Plan Writer — writes the final personalized health plan in markdown. "
+        "Use last, to assemble everything into the deliverable.",
+        worker=writer,
+    )
+    return wf
+
+
 def start_run(idea: str) -> str:
     """Schedule a Workforce run; return its task_id immediately."""
     task_id = uuid.uuid4().hex[:12]
@@ -77,11 +201,14 @@ async def _run(task_id: str, idea: str) -> None:
     loop = asyncio.get_running_loop()
 
     def emit(event: RunEvent) -> None:
-        # Safe from any thread — the stream callback may run off-loop.
+        # Safe from any thread — callbacks may run off-loop.
         loop.call_soon_threadsafe(queue.put_nowait, event)
 
     try:
-        wf = build_workforce(stream=True)
+        totals: Dict[str, Dict[str, int]] = defaultdict(
+            lambda: {"prompt_tokens": 0, "completion_tokens": 0}
+        )
+        wf = _build_instrumented_workforce(emit, totals)
 
         id_to_role = {
             child.node_id: _role_for(child.description or "")

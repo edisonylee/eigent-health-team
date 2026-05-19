@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef } from "react";
 import { Handle, NodeProps, Position } from "reactflow";
-import { ROLE_LABEL, Role, Status } from "../store";
+import { ROLE_LABEL, Role, Status, useStore } from "../store";
 
 const NODE_STYLE: Record<Status, string> = {
   pending: "border-stone-300 bg-stone-50",
@@ -18,10 +18,15 @@ interface WorkerNodeData {
   role: Role;
   status: Status;
   text: string;
+  promptTokens: number;
+  completionTokens: number;
+  cost: number;
+  toolCallCount: number;
 }
 
 function WorkerNodeImpl({ data }: NodeProps<WorkerNodeData>) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const setExpanded = useStore((s) => s.setExpanded);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -29,9 +34,13 @@ function WorkerNodeImpl({ data }: NodeProps<WorkerNodeData>) {
     }
   }, [data.text]);
 
+  const tokens = data.promptTokens + data.completionTokens;
+  const hasUsage = tokens > 0;
+
   return (
     <div
-      className={`w-52 rounded-lg border-2 px-3 py-2 shadow-sm transition-colors ${NODE_STYLE[data.status]}`}
+      onClick={() => setExpanded(data.role)}
+      className={`w-52 cursor-pointer rounded-lg border-2 px-3 py-2 shadow-sm transition-colors hover:shadow-md ${NODE_STYLE[data.status]}`}
     >
       <Handle type="target" position={Position.Top} />
       <div className="flex items-center justify-between">
@@ -44,12 +53,28 @@ function WorkerNodeImpl({ data }: NodeProps<WorkerNodeData>) {
           {data.status === "running" ? "● running" : data.status}
         </span>
       </div>
+
+      {data.toolCallCount > 0 && (
+        <div className="mt-1 inline-flex items-center gap-1 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] text-sky-800">
+          🔍 {data.toolCallCount}{" "}
+          {data.toolCallCount === 1 ? "search" : "searches"}
+        </div>
+      )}
+
       <div
         ref={scrollRef}
-        className="mt-1.5 h-16 overflow-y-auto whitespace-pre-wrap font-mono text-[10px] leading-snug text-stone-500"
+        className="mt-1.5 h-14 overflow-y-auto whitespace-pre-wrap font-mono text-[10px] leading-snug text-stone-500"
       >
         {data.text || (data.status === "pending" ? "waiting…" : "")}
       </div>
+
+      <div className="mt-1 flex items-center justify-between border-t border-stone-200 pt-1 font-mono text-[10px] text-stone-500">
+        <span>{hasUsage ? `${tokens.toLocaleString()} tok` : "—"}</span>
+        <span className="text-stone-700">
+          {hasUsage ? `$${data.cost.toFixed(4)}` : ""}
+        </span>
+      </div>
+
       <Handle type="source" position={Position.Bottom} />
     </div>
   );

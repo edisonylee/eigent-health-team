@@ -12,6 +12,13 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
+from src.agents import (
+    ASSESSOR_PROMPT,
+    PLAN_PROMPT,
+    RESEARCHER_PROMPT,
+    SAFETY_PROMPT,
+)
+
 from .runner import event_stream, rate_limited, start_run
 
 # Local dev reads .env; in production (Render) the vars are set directly.
@@ -19,7 +26,7 @@ load_dotenv()
 
 APP_PASSWORD = os.environ.get("APP_PASSWORD", "dev")
 
-app = FastAPI(title="Eigent Startup Research Team")
+app = FastAPI(title="Eigent Personalized Health Team")
 
 app.add_middleware(
     CORSMiddleware,
@@ -55,6 +62,18 @@ async def events(task_id: str) -> EventSourceResponse:
 @app.get("/api/health")
 def health() -> dict:
     return {"ok": True}
+
+
+@app.get("/api/prompts")
+def prompts() -> dict:
+    """The system prompts for each worker — surfaced in the UI's expand-drawer
+    so the user can see exactly what each agent was told to do."""
+    return {
+        "researcher": RESEARCHER_PROMPT,
+        "analyst": ASSESSOR_PROMPT,
+        "critic": SAFETY_PROMPT,
+        "summarizer": PLAN_PROMPT,
+    }
 
 
 # Serve the built frontend (only present in the Docker image / after a build).

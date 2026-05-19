@@ -1,9 +1,10 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import Gate from "./components/Gate";
 import MemoPanel from "./components/MemoPanel";
 import TaskGraph from "./components/TaskGraph";
+import WorkerDrawer from "./components/WorkerDrawer";
 import { streamRun } from "./lib/sse";
-import { useStore } from "./store";
+import { selectTotalCost, useStore } from "./store";
 
 export default function App() {
   const authed = useStore((s) => s.authed);
@@ -11,11 +12,23 @@ export default function App() {
   const password = useStore((s) => s.password);
   const phase = useStore((s) => s.phase);
   const error = useStore((s) => s.error);
+  const totalCost = useStore(selectTotalCost);
+  const prompts = useStore((s) => s.prompts);
   const setIdea = useStore((s) => s.setIdea);
+  const setPrompts = useStore((s) => s.setPrompts);
   const startRun = useStore((s) => s.startRun);
   const applyEvent = useStore((s) => s.applyEvent);
 
   const esRef = useRef<EventSource | null>(null);
+
+  // Fetch the system prompts once so the expand-drawer can render them.
+  useEffect(() => {
+    if (!authed || prompts) return;
+    fetch("/api/prompts")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((p) => p && setPrompts(p))
+      .catch(() => {});
+  }, [authed, prompts, setPrompts]);
 
   if (!authed) return <Gate />;
 
@@ -48,16 +61,30 @@ export default function App() {
     }
   };
 
+  const showCost = totalCost > 0;
+
   return (
     <div className="min-h-screen bg-stone-100 px-6 py-8">
       <div className="mx-auto max-w-5xl">
-        <header className="mb-4">
-          <h1 className="font-serif text-2xl text-stone-900">
-            Personalized Health Team
-          </h1>
-          <p className="text-sm text-stone-500">
-            A four-agent CAMEL Workforce — research, assessment, safety review, plan.
-          </p>
+        <header className="mb-4 flex items-end justify-between">
+          <div>
+            <h1 className="font-serif text-2xl text-stone-900">
+              Personalized Health Team
+            </h1>
+            <p className="text-sm text-stone-500">
+              A four-agent CAMEL Workforce — research, assessment, safety review, plan.
+            </p>
+          </div>
+          {showCost && (
+            <div className="text-right font-mono text-xs text-stone-500">
+              <div className="uppercase tracking-wide text-[10px] text-stone-400">
+                cost so far
+              </div>
+              <div className="text-lg text-stone-800">
+                ${totalCost.toFixed(4)}
+              </div>
+            </div>
+          )}
         </header>
 
         <div className="mb-5 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
@@ -95,7 +122,14 @@ export default function App() {
         <div className="mt-6">
           <MemoPanel />
         </div>
+
+        <p className="mt-3 text-center text-[11px] text-stone-400">
+          Click any worker node to see its system prompt, streamed output, tool
+          calls, and usage.
+        </p>
       </div>
+
+      <WorkerDrawer />
     </div>
   );
 }
