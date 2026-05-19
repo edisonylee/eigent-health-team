@@ -16,6 +16,12 @@ export default function TaskGraph() {
     const xs = [20, 250, 480, 710];
     const workerNodes: Node[] = ROLE_ORDER.map((role, i) => {
       const w = workers[role];
+      const kbCount = w.toolCalls.filter(
+        (tc) => tc.name === "search_health_kb",
+      ).length;
+      const webCount = w.toolCalls.filter(
+        (tc) => tc.name === "search_duckduckgo",
+      ).length;
       return {
         id: role,
         type: "worker",
@@ -27,7 +33,8 @@ export default function TaskGraph() {
           promptTokens: w.promptTokens,
           completionTokens: w.completionTokens,
           cost: w.cost,
-          toolCallCount: w.toolCalls.length,
+          kbCount,
+          webCount,
         },
         draggable: false,
       };

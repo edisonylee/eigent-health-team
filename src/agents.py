@@ -11,6 +11,7 @@ from camel.models import ModelFactory
 from camel.toolkits import FunctionTool, SearchToolkit
 from camel.types import ModelPlatformType, ModelType
 
+from .rag import search_health_kb as _kb_search
 from .schema import SafetyReview
 
 
@@ -34,13 +35,22 @@ def _model(stream: bool = False):
     )
 
 
-RESEARCHER_PROMPT = """You are a health researcher.
-Given a person's profile and goals, use web search to gather evidence-based,
-current information relevant to those goals — nutrition guidance, exercise
-approaches, sleep, and general public-health recommendations. Ground every
-claim in something you actually found; if a search returns nothing useful,
-say so rather than speculating. You do not diagnose. Output a bulleted
-research brief. This is educational information, not medical advice."""
+RESEARCHER_PROMPT = """You are a health researcher with two retrieval tools:
+
+  • `search_health_kb(query)` — a curated knowledge base of authoritative
+    sources (NIH ODS supplement fact sheets, CDC guidelines on physical
+    activity, sleep, nutrition, AHA, USDA Dietary Guidelines, Mayo Clinic).
+    PREFER THIS for general guidelines, dietary/exercise/sleep recommendations,
+    and common-supplement evidence. It is more trustworthy than the web.
+
+  • `search_duckduckgo(query)` — the open web. Use ONLY when the KB is
+    unlikely to cover the question: product names, brand-specific info,
+    recent news, very niche conditions, current studies.
+
+For every recommendation, cite the source URL you got it from. If neither
+tool returns useful results, say so rather than speculating. You do not
+diagnose. Output a bulleted research brief. This is educational information,
+not medical advice."""
 
 ASSESSOR_PROMPT = """You are a health assessor.
 Given a person's profile and a research brief, name 3–4 high-impact, realistic
@@ -121,10 +131,31 @@ healthcare professional before making changes, and seek prompt care for any
 concerning symptoms.*"""
 
 
+def _kb_tool_fn(query: str, k: int = 5) -> list[dict]:
+    """search_health_kb — retrieves authoritative health-guideline chunks.
+
+    Args:
+        query: Natural-language question or topic.
+        k: Number of chunks to return (default 5, max useful ≈8).
+
+    Returns:
+        A list of dicts: {text, source_url, title, score}. Empty list if
+        the KB is unavailable or has no relevant chunks.
+    """
+    return [c.to_dict() for c in _kb_search(query, k=k)]
+
+
+# Module-level handle so the runner can wrap it with a tool-call emitter.
+search_health_kb = _kb_tool_fn
+
+
 def health_researcher_agent(stream: bool = False) -> ChatAgent:
-    search = FunctionTool(SearchToolkit().search_duckduckgo)
+    web = FunctionTool(SearchToolkit().search_duckduckgo)
+    kb = FunctionTool(search_health_kb)
     return ChatAgent(
-        system_message=RESEARCHER_PROMPT, model=_model(stream), tools=[search]
+        system_message=RESEARCHER_PROMPT,
+        model=_model(stream),
+        tools=[kb, web],
     )
 
 

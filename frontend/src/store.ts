@@ -38,11 +38,13 @@ export interface RunEvent {
   cost?: number;
   tool_name?: string;
   tool_query?: string;
+  retrieved_sources?: { url: string; title: string; score: number }[];
 }
 
 export interface ToolCall {
   name: string;
   query: string;
+  sources?: { url: string; title: string; score: number }[];
 }
 
 interface WorkerState {
@@ -154,7 +156,11 @@ export const useStore = create<Store>((set) => ({
           ...prev,
           toolCalls: [
             ...prev.toolCalls,
-            { name: e.tool_name || "tool", query: e.tool_query || "" },
+            {
+              name: e.tool_name || "tool",
+              query: e.tool_query || "",
+              sources: e.retrieved_sources,
+            },
           ],
         };
         return { workers };

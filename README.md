@@ -118,6 +118,47 @@ eigent-health-team/
 └── evals/                  # deterministic + LLM-judge + cost-table evals
 ```
 
+## Agentic RAG over a curated knowledge base
+
+The Health Researcher has **two tools** and *decides* which to use per query:
+
+- `search_health_kb(query)` — a local Qdrant vector store indexed from
+  authoritative free sources (NIH ODS supplement fact sheets, CDC physical
+  activity / sleep / nutrition, AHA, USDA Dietary Guidelines, NHLBI sleep,
+  Mayo Clinic). Embeddings run **locally** via sentence-transformers
+  `all-MiniLM-L6-v2` (384-dim, free, no key, query text never leaves the
+  box). Preferred for general guidelines and supplement evidence.
+- `search_duckduckgo(query)` — the open web. Used only when the KB is
+  unlikely to cover the question (product names, recent news, niche topics).
+
+System prompt steers the choice. In a typical run on a generalist profile,
+all 4 retrieval calls hit the KB (0 web), with each query pulling 5 chunks
+ranked by cosine similarity.
+
+### How it's built
+
+```
+data/kb_sources.txt   → scripts/ingest_kb.py → Qdrant collection 'health_kb'
+                        Firecrawl markdown    (cosine, 384-dim)
+                        ~500-token chunks
+                        local embeddings
+```
+
+Files: `src/rag.py` (retrieval), `scripts/ingest_kb.py` (one-time ingestion),
+`docker-compose.yml` (Qdrant), `data/kb_sources.txt` (~30 curated URLs).
+
+### Run it
+
+```bash
+docker compose up -d qdrant            # start the vector store
+echo 'FIRECRAWL_API_KEY=fc-...' >> .env # free tier from firecrawl.dev
+uv run python -m scripts.ingest_kb     # ~2-3 min for ~30 URLs
+```
+
+The UI surfaces every retrieval: each Researcher node shows `📚 N KB · 🌐 N
+web` badges; clicking into the worker drawer reveals the actual query for
+each call and the retrieved sources with their similarity scores.
+
 ## Evals
 
 Three scripts live in `evals/` — production-relevant signal, not vibes.

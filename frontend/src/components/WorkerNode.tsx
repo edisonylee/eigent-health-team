@@ -21,7 +21,8 @@ interface WorkerNodeData {
   promptTokens: number;
   completionTokens: number;
   cost: number;
-  toolCallCount: number;
+  kbCount: number;
+  webCount: number;
 }
 
 function WorkerNodeImpl({ data }: NodeProps<WorkerNodeData>) {
@@ -54,10 +55,18 @@ function WorkerNodeImpl({ data }: NodeProps<WorkerNodeData>) {
         </span>
       </div>
 
-      {data.toolCallCount > 0 && (
-        <div className="mt-1 inline-flex items-center gap-1 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] text-sky-800">
-          🔍 {data.toolCallCount}{" "}
-          {data.toolCallCount === 1 ? "search" : "searches"}
+      {(data.kbCount > 0 || data.webCount > 0) && (
+        <div className="mt-1 flex flex-wrap gap-1">
+          {data.kbCount > 0 && (
+            <span className="inline-flex items-center gap-1 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] text-violet-800">
+              📚 {data.kbCount} KB
+            </span>
+          )}
+          {data.webCount > 0 && (
+            <span className="inline-flex items-center gap-1 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] text-sky-800">
+              🌐 {data.webCount} web
+            </span>
+          )}
         </div>
       )}
 

@@ -36,3 +36,5 @@ class RunEvent(BaseModel):
     # tool_call:
     tool_name: Optional[str] = None
     tool_query: Optional[str] = None
+    # tool_call (retrieval): top retrieved sources, if any
+    retrieved_sources: Optional[list[dict]] = None

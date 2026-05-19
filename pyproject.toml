@@ -1,7 +1,7 @@
 [project]
-name = "eigent-startup-team"
+name = "eigent-health-team"
 version = "0.1.0"
-description = "A four-agent CAMEL Workforce that turns a startup idea into a structured market memo."
+description = "A multi-agent CAMEL Workforce that turns a profile into a personalized health plan, with agentic RAG over a curated knowledge base."
 requires-python = ">=3.10"
 dependencies = [
     "camel-ai>=0.2.90",
@@ -12,6 +12,10 @@ dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
     "sse-starlette>=2.1",
+    # RAG stack
+    "qdrant-client>=1.12",
+    "sentence-transformers>=3.0",
+    "firecrawl-py>=1.0",
 ]
 
 [tool.uv]

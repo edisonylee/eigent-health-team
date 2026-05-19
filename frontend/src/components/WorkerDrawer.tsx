@@ -78,16 +78,51 @@ export default function WorkerDrawer() {
               <h3 className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">
                 Tool calls ({worker.toolCalls.length})
               </h3>
-              <ol className="mt-1.5 space-y-1.5">
-                {worker.toolCalls.map((tc, i) => (
-                  <li
-                    key={i}
-                    className="rounded-md border border-sky-200 bg-sky-50 px-3 py-1.5 font-mono text-[11px] text-sky-900"
-                  >
-                    <span className="text-sky-600">{tc.name}</span>(
-                    <span className="text-sky-800">"{tc.query}"</span>)
-                  </li>
-                ))}
+              <ol className="mt-1.5 space-y-2">
+                {worker.toolCalls.map((tc, i) => {
+                  const isKB = tc.name === "search_health_kb";
+                  return (
+                    <li
+                      key={i}
+                      className={`rounded-md border px-3 py-2 font-mono text-[11px] ${
+                        isKB
+                          ? "border-violet-200 bg-violet-50 text-violet-900"
+                          : "border-sky-200 bg-sky-50 text-sky-900"
+                      }`}
+                    >
+                      <div>
+                        <span className={isKB ? "text-violet-600" : "text-sky-600"}>
+                          {isKB ? "📚 " : "🌐 "}
+                          {tc.name}
+                        </span>
+                        (
+                        <span className={isKB ? "text-violet-800" : "text-sky-800"}>
+                          "{tc.query}"
+                        </span>
+                        )
+                      </div>
+                      {tc.sources && tc.sources.length > 0 && (
+                        <ul className="mt-1.5 space-y-0.5 border-l-2 border-violet-300 pl-2">
+                          {tc.sources.map((s, j) => (
+                            <li key={j} className="text-[10px]">
+                              <a
+                                href={s.url}
+                                target="_blank"
+                                rel="noreferrer noopener"
+                                className="text-violet-700 underline hover:text-violet-900"
+                              >
+                                {s.title || s.url}
+                              </a>{" "}
+                              <span className="text-violet-500">
+                                ({s.score.toFixed(3)})
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </li>
+                  );
+                })}
               </ol>
             </section>
           )}

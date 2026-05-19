@@ -27,6 +27,7 @@ from src.agents import (
     SAFETY_PROMPT,
     _model,
 )
+from src.rag import search_health_kb as _kb_search
 
 from .events import RunEvent
 
@@ -103,6 +104,38 @@ def _wrap_search_tool(
     return FunctionTool(search_duckduckgo)
 
 
+def _wrap_kb_tool(emit: Callable[[RunEvent], None]) -> FunctionTool:
+    """Wrap search_health_kb to emit tool_call + retrieved_sources."""
+
+    def search_health_kb(query: str, k: int = 5) -> list[dict]:
+        """search_health_kb — retrieves authoritative health-guideline chunks.
+
+        Args:
+            query: Natural-language question or topic.
+            k: Number of chunks to return (default 5).
+
+        Returns:
+            A list of {text, source_url, title, score} dicts.
+        """
+        chunks = _kb_search(query, k=k)
+        sources = [
+            {"url": c.source_url, "title": c.title, "score": round(c.score, 4)}
+            for c in chunks
+        ]
+        emit(
+            RunEvent(
+                type="tool_call",
+                role="researcher",
+                tool_name="search_health_kb",
+                tool_query=str(query),
+                retrieved_sources=sources,
+            )
+        )
+        return [c.to_dict() for c in chunks]
+
+    return FunctionTool(search_health_kb)
+
+
 def _usage_callback(
     role: str,
     totals: Dict[str, Dict[str, int]],
@@ -138,12 +171,13 @@ def _build_instrumented_workforce(
 ) -> Workforce:
     """Build the Workforce with usage callbacks pinned to each worker and a
     tool-call-emitting wrapper around the search tool."""
-    search_tool = _wrap_search_tool(emit)
+    web_tool = _wrap_search_tool(emit)
+    kb_tool = _wrap_kb_tool(emit)
 
     researcher = ChatAgent(
         system_message=RESEARCHER_PROMPT,
         model=_model(stream=True),
-        tools=[search_tool],
+        tools=[kb_tool, web_tool],
         on_request_usage=_usage_callback("researcher", totals, emit),
     )
     assessor = ChatAgent(
