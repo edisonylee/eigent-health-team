@@ -135,6 +135,29 @@ CREATE TABLE IF NOT EXISTS entity_mention (
 CREATE INDEX IF NOT EXISTS idx_mention_entity ON entity_mention(entity_id);
 CREATE INDEX IF NOT EXISTS idx_mention_source ON entity_mention(source_kind, source_id);
 CREATE INDEX IF NOT EXISTS idx_entity_type ON personal_entity(type);
+
+-- v3: long-term operator substrate. Point events logged retroactively or
+-- live. `day` is YYYY-MM-DD in user-local time (used by the calendar grid).
+-- `ts` is the canonical epoch timestamp (used for ordering and trend math).
+-- `tags_json` is an optional JSON array of strings. `meta_json` carries the
+-- open-set fields (severity, dose, duration_min, source) without forcing
+-- schema changes for every new event shape.
+CREATE TABLE IF NOT EXISTS event (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    profile_id    INTEGER,
+    ts            REAL NOT NULL,
+    day           TEXT NOT NULL,
+    category      TEXT NOT NULL,                 -- symptom | meal | sleep |
+                                                 -- exercise | supplement |
+                                                 -- medication | mood | note
+    description   TEXT NOT NULL,
+    tags_json     TEXT,
+    meta_json     TEXT,
+    created_at    REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_event_profile_day ON event(profile_id, day);
+CREATE INDEX IF NOT EXISTS idx_event_ts ON event(ts);
+CREATE INDEX IF NOT EXISTS idx_event_category ON event(category);
 """
 
 
@@ -400,3 +423,136 @@ async def add_check_in(data: dict) -> dict:
 
 async def list_check_ins(limit: int = 30) -> list[dict]:
     return await asyncio.to_thread(list_check_ins_sync, limit)
+
+
+# --- events -------------------------------------------------------------------
+
+
+def _event_row_to_dict(row: sqlite3.Row) -> dict:
+    d = dict(row)
+    for k in ("tags_json", "meta_json"):
+        raw = d.pop(k)
+        out_key = k.removesuffix("_json")
+        if not raw:
+            d[out_key] = [] if k == "tags_json" else {}
+            continue
+        try:
+            d[out_key] = json.loads(raw)
+        except json.JSONDecodeError:
+            d[out_key] = [] if k == "tags_json" else {}
+    return d
+
+
+def add_event_sync(data: dict) -> dict:
+    # `day` is the user-local date string; `ts` defaults to now but the caller
+    # can override (retroactive entries pass the day's noon as a proxy).
+    day = data.get("day") or time.strftime("%Y-%m-%d")
+    ts = data.get("ts")
+    if ts is None:
+        # If a retroactive day was given, anchor at local noon so timezone
+        # nudges don't push it onto the wrong calendar cell.
+        if data.get("day") and data["day"] != time.strftime("%Y-%m-%d"):
+            ts = time.mktime(time.strptime(data["day"] + " 12:00", "%Y-%m-%d %H:%M"))
+        else:
+            ts = time.time()
+    tags = data.get("tags") or []
+    meta = data.get("meta") or {}
+    with _connect() as conn:
+        cur = conn.execute(
+            "INSERT INTO event(profile_id, ts, day, category, description, "
+            "tags_json, meta_json, created_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                data.get("profile_id"),
+                ts,
+                day,
+                data["category"],
+                data["description"],
+                json.dumps(tags) if tags else None,
+                json.dumps(meta) if meta else None,
+                time.time(),
+            ),
+        )
+        eid = cur.lastrowid
+        conn.commit()
+        row = conn.execute("SELECT * FROM event WHERE id = ?", (eid,)).fetchone()
+        return _event_row_to_dict(row)
+
+
+def list_events_sync(
+    since: Optional[str] = None,
+    until: Optional[str] = None,
+    category: Optional[str] = None,
+    limit: int = 500,
+) -> list[dict]:
+    where = ["1=1"]
+    params: list[Any] = []
+    if since:
+        where.append("day >= ?")
+        params.append(since)
+    if until:
+        where.append("day <= ?")
+        params.append(until)
+    if category:
+        where.append("category = ?")
+        params.append(category)
+    params.append(limit)
+    with _connect() as conn:
+        rows = conn.execute(
+            f"SELECT * FROM event WHERE {' AND '.join(where)} "
+            f"ORDER BY ts DESC LIMIT ?",
+            params,
+        ).fetchall()
+        return [_event_row_to_dict(r) for r in rows]
+
+
+def event_category_counts_sync(
+    since: Optional[str] = None,
+    until: Optional[str] = None,
+) -> list[dict]:
+    """Group event counts by (day, category) for the trend strip."""
+    where = ["1=1"]
+    params: list[Any] = []
+    if since:
+        where.append("day >= ?")
+        params.append(since)
+    if until:
+        where.append("day <= ?")
+        params.append(until)
+    with _connect() as conn:
+        rows = conn.execute(
+            f"SELECT day, category, COUNT(*) AS n FROM event WHERE "
+            f"{' AND '.join(where)} GROUP BY day, category ORDER BY day, category",
+            params,
+        ).fetchall()
+        return [{"day": r["day"], "category": r["category"], "n": r["n"]} for r in rows]
+
+
+def delete_event_sync(event_id: int) -> bool:
+    with _connect() as conn:
+        cur = conn.execute("DELETE FROM event WHERE id = ?", (event_id,))
+        conn.commit()
+        return cur.rowcount > 0
+
+
+async def add_event(data: dict) -> dict:
+    return await asyncio.to_thread(add_event_sync, data)
+
+
+async def list_events(
+    since: Optional[str] = None,
+    until: Optional[str] = None,
+    category: Optional[str] = None,
+    limit: int = 500,
+) -> list[dict]:
+    return await asyncio.to_thread(list_events_sync, since, until, category, limit)
+
+
+async def event_category_counts(
+    since: Optional[str] = None,
+    until: Optional[str] = None,
+) -> list[dict]:
+    return await asyncio.to_thread(event_category_counts_sync, since, until)
+
+
+async def delete_event(event_id: int) -> bool:
+    return await asyncio.to_thread(delete_event_sync, event_id)

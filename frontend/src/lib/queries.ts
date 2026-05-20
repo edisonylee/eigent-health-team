@@ -83,3 +83,34 @@ export const useReindexMemoryGraph = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["memory-graph"] }),
   });
 };
+
+// v3 — events / calendar / trend strip
+
+export const useEvents = (params: Parameters<typeof api.events>[0] = {}) =>
+  useQuery({
+    queryKey: ["events", params],
+    queryFn: () => api.events(params),
+  });
+
+export const useCategoryCounts = (since: string, until: string) =>
+  useQuery({
+    queryKey: ["events", "counts", since, until],
+    queryFn: () => api.categoryCounts(since, until),
+  });
+
+export const useLogEvent = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: api.logEvent,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["events"] }),
+  });
+};
+
+export const useDeleteEvent = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, password }: { id: number; password: string }) =>
+      api.deleteEvent(id, password),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["events"] }),
+  });
+};

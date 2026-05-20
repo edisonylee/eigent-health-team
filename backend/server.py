@@ -37,6 +37,7 @@ from src.model_config import (
     set_active_config,
 )
 
+from .routers import events as events_router
 from .routers import memory_graph as memory_graph_router
 from .runner import (
     event_stream,
@@ -100,6 +101,8 @@ app.add_middleware(
 
 # v3: memory-graph endpoints. Net-new router; no overlap with Phase C wiring.
 app.include_router(memory_graph_router.router)
+# v3: retroactive events / calendar / trend strip. Same pattern.
+app.include_router(events_router.router)
 
 
 class RunRequest(BaseModel):

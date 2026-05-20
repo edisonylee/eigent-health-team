@@ -3,8 +3,10 @@ import { Link } from "react-router-dom";
 import AgentQuestionModal from "./components/AgentQuestionModal";
 import AgentTimeline from "./components/AgentTimeline";
 import BiomarkerTable from "./components/BiomarkerTable";
+import CalendarStrip from "./components/CalendarStrip";
 import MemoPanel from "./components/MemoPanel";
 import TaskGraph from "./components/TaskGraph";
+import TrendChart from "./components/TrendChart";
 import WorkerDrawer from "./components/WorkerDrawer";
 import { Button } from "./components/ui/Button";
 import { Card } from "./components/ui/Card";
@@ -293,6 +295,11 @@ export default function App() {
         )}
 
         <BiomarkerTable />
+
+        {/* v3: long-term operator substrate — retroactive event calendar +
+            per-category trend strip, sharing one 28-day window. */}
+        <CalendarStrip />
+        <TrendChart />
 
         {phase === "error" && (
           <Card surface="starless" shape="default" className="mb-4 border border-crimson-red/40 bg-crimson-red/10 text-crimson-red">

@@ -72,6 +72,45 @@ export interface EntityDetail {
   mentions: EntityMention[];
 }
 
+export type EventCategory =
+  | "symptom"
+  | "meal"
+  | "sleep"
+  | "exercise"
+  | "supplement"
+  | "medication"
+  | "mood"
+  | "note";
+
+export const EVENT_CATEGORIES: EventCategory[] = [
+  "symptom",
+  "meal",
+  "sleep",
+  "exercise",
+  "supplement",
+  "medication",
+  "mood",
+  "note",
+];
+
+export interface LoggedEvent {
+  id: number;
+  profile_id: number | null;
+  ts: number;
+  day: string; // YYYY-MM-DD
+  category: EventCategory;
+  description: string;
+  tags: string[];
+  meta: Record<string, unknown>;
+  created_at: number;
+}
+
+export interface CategoryCount {
+  day: string;
+  category: EventCategory;
+  n: number;
+}
+
 export interface CheckIn {
   id: number;
   day: string;
@@ -153,4 +192,42 @@ export const api = {
       "/api/memory-graph/reindex",
       { method: "POST", body: JSON.stringify(body) },
     ),
+
+  // v3 — events / calendar
+  events: (params: {
+    since?: string;
+    until?: string;
+    category?: EventCategory;
+    limit?: number;
+  } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.since) qs.set("since", params.since);
+    if (params.until) qs.set("until", params.until);
+    if (params.category) qs.set("category", params.category);
+    if (params.limit) qs.set("limit", String(params.limit));
+    return jsonFetch<{ events: LoggedEvent[] }>(
+      `/api/events${qs.toString() ? `?${qs}` : ""}`,
+    ).then((r) => r.events);
+  },
+  logEvent: (body: {
+    password: string;
+    category: EventCategory;
+    description: string;
+    day?: string;
+    tags?: string[];
+    meta?: Record<string, unknown>;
+  }) =>
+    jsonFetch<LoggedEvent>("/api/events", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  deleteEvent: (id: number, password: string) =>
+    jsonFetch<{ ok: true }>(`/api/events/${id}`, {
+      method: "DELETE",
+      body: JSON.stringify({ password }),
+    }),
+  categoryCounts: (since: string, until: string) =>
+    jsonFetch<{ counts: CategoryCount[] }>(
+      `/api/events/category-counts?since=${since}&until=${until}`,
+    ).then((r) => r.counts),
 };
