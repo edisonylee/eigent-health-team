@@ -54,19 +54,20 @@ export default function OnboardingModal() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-midnight-eclipse/80 p-6 backdrop-blur-md"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-cloud-canvas/80 p-6 backdrop-blur-md"
       role="dialog"
       aria-modal="true"
     >
-      <div className="w-full max-w-xl overflow-hidden rounded-card bg-starless-night shadow-xl shadow-subtle-1">
-        <div className="bg-gradient-nebula px-6 py-5">
-          <div className="text-[10px] uppercase tracking-[0.2em] text-frost/85">
+      <div className="w-full max-w-xl overflow-hidden rounded-card bg-paper-white shadow-card">
+        <div className="border-b border-cloud-canvas px-6 py-5">
+          <div className="flex items-center gap-2 text-caption uppercase tracking-[0.1px] text-slate-gray">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-fire-orange" />
             Setup · choose a model backend
           </div>
-          <h2 className="mt-2 text-heading-sm font-semibold text-frost">
+          <h2 className="mt-2 text-heading font-medium text-ink-black">
             Welcome to HealthOS
           </h2>
-          <p className="mt-1 text-body text-frost/85">
+          <p className="mt-1 text-body text-slate-gray">
             Pick a backend to run the four-agent Workforce against. You can
             switch any time from Settings.
           </p>
@@ -90,14 +91,14 @@ export default function OnboardingModal() {
         </div>
 
         {picked === "openai" && (
-          <div className="space-y-3 border-t border-twilight-ink bg-midnight-eclipse/40 px-6 py-4">
+          <div className="space-y-3 border-t border-frost-gray bg-cloud-canvas/60 px-6 py-4">
             <label className="block text-[12px] text-slate-gray">
               Set{" "}
-              <code className="rounded bg-frost/10 px-1 text-frost">
+              <code className="rounded bg-cloud-canvas px-1 text-ink-black">
                 OPENAI_API_KEY
               </code>{" "}
               in your backend environment (e.g.{" "}
-              <code className="rounded bg-frost/10 px-1 text-frost">.env</code>
+              <code className="rounded bg-cloud-canvas px-1 text-ink-black">.env</code>
               ), then paste it here as confirmation.
             </label>
             <Input
@@ -118,7 +119,7 @@ export default function OnboardingModal() {
         )}
 
         {picked === "ollama" && (
-          <div className="space-y-3 border-t border-twilight-ink bg-midnight-eclipse/40 px-6 py-4">
+          <div className="space-y-3 border-t border-frost-gray bg-cloud-canvas/60 px-6 py-4">
             <div className="grid grid-cols-2 gap-3">
               <label className="block text-[12px] text-slate-gray">
                 Host
@@ -146,9 +147,9 @@ export default function OnboardingModal() {
               {update.isPending ? "Switching…" : "Use local Ollama"}
             </Button>
             {!status.ollama_reachable && (
-              <p className="text-[11px] text-goldenrod">
+              <p className="text-[11px] text-fire-orange">
                 Ollama isn't reachable at {ollamaHost}. Start it with{" "}
-                <code className="rounded bg-frost/10 px-1 text-frost">
+                <code className="rounded bg-cloud-canvas px-1 text-ink-black">
                   ollama serve
                 </code>
                 .
@@ -158,7 +159,7 @@ export default function OnboardingModal() {
         )}
 
         {error && (
-          <div className="border-t border-crimson-red/30 bg-crimson-red/10 px-6 py-2 text-[12px] text-crimson-red">
+          <div className="border-t border-status-error/30 bg-status-error/10 px-6 py-2 text-[12px] text-status-error">
             {error}
           </div>
         )}
@@ -187,13 +188,13 @@ function PickCard({
       className={
         "rounded-default border p-4 text-left transition-all " +
         (picked
-          ? "border-electric-blue/60 bg-frost/5 shadow-subtle-1"
-          : "border-twilight-ink bg-midnight-eclipse/40 hover:border-frost/30 hover:bg-frost/[0.03]")
+          ? "border-fire-orange/60 bg-paper-white/5 shadow-subtle-1"
+          : "border-frost-gray bg-cloud-canvas/60 hover:border-frost-gray/30 hover:bg-paper-white/[0.03]")
       }
     >
-      <div className="text-body font-semibold text-frost">{label}</div>
+      <div className="text-body font-semibold text-ink-black">{label}</div>
       <div className="mt-1 text-[12px] text-slate-gray">{blurb}</div>
-      <div className="mt-2 text-[11px] text-pewter">{footnote}</div>
+      <div className="mt-2 text-[11px] text-silver-mist">{footnote}</div>
     </button>
   );
 }

@@ -4,10 +4,10 @@ import { ROLE_LABEL, Role, Status, useStore } from "../store";
 import { Badge } from "./ui/Badge";
 
 const SHELL: Record<Status, string> = {
-  pending: "border-twilight-ink bg-starless-night",
+  pending: "border-cloud-canvas bg-paper-white",
   running:
-    "border-electric-blue/70 bg-starless-night shadow-glow animate-pulse-glow",
-  done: "border-vivid-green/70 bg-starless-night shadow-glow-green",
+    "border-fire-orange bg-paper-white shadow-glow animate-pulse-glow",
+  done: "border-status-done/40 bg-paper-white",
 };
 
 const STATUS_LABEL: Record<Status, string> = {
@@ -53,9 +53,9 @@ function WorkerNodeImpl({ data }: NodeProps<WorkerNodeData>) {
       onClick={() => setExpanded(data.role)}
       className={`w-56 cursor-pointer rounded-default border px-3 py-2.5 transition-all hover:shadow-subtle ${SHELL[data.status]}`}
     >
-      <Handle type="target" position={Position.Top} className="!bg-twilight-ink" />
+      <Handle type="target" position={Position.Top} className="!bg-frost-gray" />
       <div className="flex items-center justify-between">
-        <span className="text-[13px] font-medium text-frost">
+        <span className="text-[13px] font-medium text-ink-black">
           {ROLE_LABEL[data.role]}
         </span>
         <Badge
@@ -98,19 +98,19 @@ function WorkerNodeImpl({ data }: NodeProps<WorkerNodeData>) {
 
       <div
         ref={scrollRef}
-        className="mt-2 h-14 overflow-y-auto whitespace-pre-wrap font-mono text-[10px] leading-snug text-ghostly-gray/70"
+        className="mt-2 h-14 overflow-y-auto whitespace-pre-wrap font-mono text-[10px] leading-snug text-stone-gray/70"
       >
         {data.text || (data.status === "pending" ? "waiting…" : "")}
       </div>
 
-      <div className="mt-1.5 flex items-center justify-between border-t border-twilight-ink pt-1.5 font-mono text-[10px] text-slate-gray">
+      <div className="mt-1.5 flex items-center justify-between border-t border-frost-gray pt-1.5 font-mono text-[10px] text-slate-gray">
         <span>{hasUsage ? `${tokens.toLocaleString()} tok` : "—"}</span>
-        <span className="text-frost">
+        <span className="text-ink-black">
           {hasUsage ? `$${data.cost.toFixed(4)}` : ""}
         </span>
       </div>
 
-      <Handle type="source" position={Position.Bottom} className="!bg-twilight-ink" />
+      <Handle type="source" position={Position.Bottom} className="!bg-frost-gray" />
     </div>
   );
 }

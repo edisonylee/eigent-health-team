@@ -15,18 +15,16 @@ export default function Gate() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-midnight-eclipse">
-      {/* Hero gradient — sits behind the centered card */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[60vh] bg-gradient-nebula opacity-60" />
-
-      <div className="relative z-10 w-[360px] rounded-card bg-starless-night p-8 shadow-xl shadow-subtle-1">
-        <div className="text-[10px] uppercase tracking-[0.2em] text-fuchsia-flare">
+    <div className="flex min-h-screen items-center justify-center bg-cloud-canvas px-6">
+      <div className="w-[400px] rounded-card bg-paper-white p-8 shadow-card">
+        <div className="flex items-center gap-2 text-caption uppercase tracking-[0.1px] text-slate-gray">
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-fire-orange" />
           HealthOS
         </div>
-        <h1 className="mt-2 text-heading-sm font-semibold text-frost">
+        <h1 className="mt-2 text-heading font-medium text-ink-black">
           Personalized Health Team
         </h1>
-        <p className="mt-1 text-[13px] text-slate-gray">
+        <p className="mt-1 text-body text-slate-gray">
           Enter the access password to continue.
         </p>
         <input
@@ -36,11 +34,11 @@ export default function Gate() {
           onKeyDown={(e) => e.key === "Enter" && enter()}
           placeholder="password"
           autoFocus
-          className="mt-4 w-full rounded-default bg-frost/5 px-3 py-2 text-body text-frost placeholder:text-slate-gray outline-none transition-[box-shadow] focus:shadow-subtle-1"
+          className="mt-5 w-full rounded-input border border-cloud-canvas bg-elevated-white px-3 py-2 text-body text-ink-black placeholder:text-silver-mist outline-none transition-colors focus:border-ink-black"
         />
         <button
           onClick={enter}
-          className="mt-3 w-full rounded-pill bg-electric-blue py-2 text-body font-medium text-frost transition hover:brightness-110"
+          className="mt-3 w-full rounded-pill bg-fire-orange py-2.5 text-body font-medium text-white transition hover:brightness-110"
         >
           Enter
         </button>

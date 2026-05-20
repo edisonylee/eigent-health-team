@@ -40,25 +40,25 @@ export default function WorkerDrawer() {
 
   return (
     <div
-      className="fixed inset-0 z-40 flex justify-end bg-midnight-eclipse/70 backdrop-blur-sm"
+      className="fixed inset-0 z-40 flex justify-end bg-cloud-canvas/70 backdrop-blur-sm"
       onClick={() => setExpanded(null)}
     >
       <aside
-        className="h-full w-full max-w-lg overflow-y-auto border-l border-twilight-ink bg-starless-night shadow-xl"
+        className="h-full w-full max-w-lg overflow-y-auto border-l border-frost-gray bg-paper-white shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-twilight-ink bg-starless-night/95 px-5 py-4 backdrop-blur">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-frost-gray bg-paper-white/95 px-5 py-4 backdrop-blur">
           <div>
-            <div className="text-[10px] uppercase tracking-[0.2em] text-fuchsia-flare">
+            <div className="text-[10px] uppercase tracking-[0.2em] text-fire-orange">
               Worker
             </div>
-            <h2 className="text-heading-sm font-semibold text-frost">
+            <h2 className="text-subheading font-semibold text-ink-black">
               {ROLE_LABEL[role]}
             </h2>
           </div>
           <button
             onClick={() => setExpanded(null)}
-            className="rounded-default p-1.5 text-slate-gray hover:bg-frost/5 hover:text-frost"
+            className="rounded-default p-1.5 text-slate-gray hover:bg-paper-white/5 hover:text-ink-black"
             aria-label="Close"
           >
             ✕
@@ -73,11 +73,11 @@ export default function WorkerDrawer() {
             <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1.5 font-mono text-[12px]">
               <span>
                 <span className="text-slate-gray">state:</span>{" "}
-                <span className="text-frost">{worker.status}</span>
+                <span className="text-ink-black">{worker.status}</span>
               </span>
               <span>
                 <span className="text-slate-gray">tokens:</span>{" "}
-                <span className="text-frost">{tokens.toLocaleString()}</span>{" "}
+                <span className="text-ink-black">{tokens.toLocaleString()}</span>{" "}
                 <span className="text-slate-gray">
                   ({worker.promptTokens.toLocaleString()} in /{" "}
                   {worker.completionTokens.toLocaleString()} out)
@@ -85,7 +85,7 @@ export default function WorkerDrawer() {
               </span>
               <span>
                 <span className="text-slate-gray">cost:</span>{" "}
-                <span className="text-frost">${worker.cost.toFixed(4)}</span>
+                <span className="text-ink-black">${worker.cost.toFixed(4)}</span>
               </span>
             </div>
           </section>
@@ -94,7 +94,7 @@ export default function WorkerDrawer() {
             <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-gray">
               System prompt
             </h3>
-            <pre className="mt-2 whitespace-pre-wrap rounded-default border border-twilight-ink bg-midnight-eclipse p-3 font-mono text-[11px] leading-snug text-ghostly-gray">
+            <pre className="mt-2 whitespace-pre-wrap rounded-default border border-frost-gray bg-cloud-canvas p-3 font-mono text-[11px] leading-snug text-stone-gray">
               {prompt}
             </pre>
           </section>
@@ -110,23 +110,23 @@ export default function WorkerDrawer() {
                   return (
                     <li
                       key={i}
-                      className="rounded-default border border-twilight-ink bg-midnight-eclipse px-3 py-2 font-mono text-[11px]"
+                      className="rounded-default border border-frost-gray bg-cloud-canvas px-3 py-2 font-mono text-[11px]"
                     >
                       <div className="flex items-center gap-2">
                         <Badge tone={tone}>{tc.name}</Badge>
-                        <span className="text-ghostly-gray/70">
+                        <span className="text-stone-gray/70">
                           "{tc.query}"
                         </span>
                       </div>
                       {tc.sources && tc.sources.length > 0 && (
-                        <ul className="mt-1.5 space-y-0.5 border-l-2 border-magenta-burst/40 pl-2">
+                        <ul className="mt-1.5 space-y-0.5 border-l-2 border-fire-orange/40 pl-2">
                           {tc.sources.map((s, j) => (
                             <li key={j} className="text-[10px]">
                               <a
                                 href={s.url}
                                 target="_blank"
                                 rel="noreferrer noopener"
-                                className="text-magenta-burst underline-offset-2 hover:underline"
+                                className="text-fire-orange underline-offset-2 hover:underline"
                               >
                                 {s.title || s.url}
                               </a>{" "}
@@ -138,13 +138,13 @@ export default function WorkerDrawer() {
                         </ul>
                       )}
                       {tc.entities && tc.entities.length > 0 && (
-                        <ul className="mt-1.5 space-y-0.5 border-l-2 border-teal-glow/40 pl-2">
+                        <ul className="mt-1.5 space-y-0.5 border-l-2 border-code-blue/40 pl-2">
                           {tc.entities.map((ent, j) => (
                             <li
                               key={j}
-                              className="text-[10px] text-ghostly-gray"
+                              className="text-[10px] text-stone-gray"
                             >
-                              <span className="font-semibold text-teal-glow">
+                              <span className="font-semibold text-code-blue">
                                 {ent.name}
                               </span>
                               <span className="text-slate-gray"> · {ent.type}</span>{" "}
@@ -164,10 +164,10 @@ export default function WorkerDrawer() {
 
           {reasoning && (
             <section>
-              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-fuchsia-flare">
+              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-fire-orange">
                 Reasoning trace
               </h3>
-              <pre className="mt-2 whitespace-pre-wrap rounded-default border border-fuchsia-flare/30 bg-fuchsia-flare/5 p-3 font-mono text-[11px] leading-snug text-ghostly-gray">
+              <pre className="mt-2 whitespace-pre-wrap rounded-default border border-fire-orange/30 bg-fire-orange/5 p-3 font-mono text-[11px] leading-snug text-stone-gray">
                 {reasoning}
               </pre>
             </section>
@@ -177,7 +177,7 @@ export default function WorkerDrawer() {
             <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-gray">
               {reasoning ? "Conclusion" : "Streamed output"}
             </h3>
-            <pre className="mt-2 max-h-[50vh] overflow-y-auto whitespace-pre-wrap rounded-default border border-twilight-ink bg-midnight-eclipse p-3 font-mono text-[11px] leading-snug text-ghostly-gray">
+            <pre className="mt-2 max-h-[50vh] overflow-y-auto whitespace-pre-wrap rounded-default border border-frost-gray bg-cloud-canvas p-3 font-mono text-[11px] leading-snug text-stone-gray">
               {(reasoning ? rest : worker.text) || "(nothing streamed yet)"}
             </pre>
           </section>

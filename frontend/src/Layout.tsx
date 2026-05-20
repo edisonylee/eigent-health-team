@@ -46,12 +46,12 @@ export default function Layout() {
     status !== undefined && status.has_usable_backend === false;
 
   return (
-    <div className="min-h-screen bg-midnight-eclipse text-frost">
-      <header className="sticky top-0 z-30 border-b border-twilight-ink bg-midnight-eclipse/85 backdrop-blur-md">
+    <div className="min-h-screen bg-cloud-canvas text-ink-black">
+      <header className="sticky top-0 z-30 border-b border-frost-gray bg-cloud-canvas/85 backdrop-blur-md">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-6 py-3">
           <Link
             to="/"
-            className="text-[15px] font-semibold tracking-tight text-frost"
+            className="text-[15px] font-semibold tracking-tight text-ink-black"
           >
             HealthOS
           </Link>
@@ -64,8 +64,8 @@ export default function Layout() {
                 className={({ isActive }) =>
                   "rounded-default px-3 py-1.5 transition-colors " +
                   (isActive
-                    ? "bg-frost text-midnight-eclipse"
-                    : "text-slate-gray hover:bg-frost/5 hover:text-frost")
+                    ? "bg-paper-white text-cloud-canvas"
+                    : "text-slate-gray hover:bg-paper-white/5 hover:text-ink-black")
                 }
               >
                 {n.label}
@@ -74,7 +74,7 @@ export default function Layout() {
             <button
               type="button"
               onClick={() => setPaletteOpen(true)}
-              className="ml-2 rounded-default border border-twilight-ink bg-frost/5 px-2 py-1 font-mono text-[11px] text-slate-gray hover:bg-frost/10 hover:text-frost"
+              className="ml-2 rounded-default border border-frost-gray bg-paper-white/5 px-2 py-1 font-mono text-[11px] text-slate-gray hover:bg-paper-white/10 hover:text-ink-black"
               title="Command palette"
             >
               ⌘K
@@ -82,10 +82,10 @@ export default function Layout() {
           </nav>
           {status && (
             <div className="text-right font-mono text-[11px] text-slate-gray">
-              <div className="uppercase tracking-wider text-pewter">
+              <div className="uppercase tracking-wider text-silver-mist">
                 backend
               </div>
-              <div className="text-frost">
+              <div className="text-ink-black">
                 {status.backend} · {status.model}
               </div>
             </div>

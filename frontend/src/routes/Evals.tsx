@@ -29,16 +29,16 @@ export default function Evals() {
   return (
     <div className="px-6 py-8">
       <div className="mx-auto max-w-5xl">
-        <h1 className="mb-2 text-heading font-semibold text-frost">
+        <h1 className="mb-2 text-heading font-semibold text-ink-black">
           Evals dashboard
         </h1>
         <p className="mb-6 text-body text-slate-gray">
           LLM-as-judge scores from{" "}
-          <code className="rounded bg-frost/10 px-1 text-frost">
+          <code className="rounded bg-paper-white/10 px-1 text-ink-black">
             evals/results.csv
           </code>
           . Run{" "}
-          <code className="rounded bg-frost/10 px-1 text-frost">
+          <code className="rounded bg-paper-white/10 px-1 text-ink-black">
             uv run python -m evals.llm_judge
           </code>{" "}
           to append fresh scores.
@@ -48,7 +48,7 @@ export default function Evals() {
           <div className="text-body text-slate-gray">loading…</div>
         )}
         {error && (
-          <div className="rounded-default border border-crimson-red/30 bg-crimson-red/10 px-3 py-2 text-[12px] text-crimson-red">
+          <div className="rounded-default border border-status-error/30 bg-status-error/10 px-3 py-2 text-[12px] text-status-error">
             {String(error)}
           </div>
         )}
@@ -58,10 +58,10 @@ export default function Evals() {
             <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">
               {Object.entries(data.means).map(([criterion, mean]) => (
                 <Card key={criterion} surface="starless" shape="default">
-                  <div className="text-[10px] uppercase tracking-[0.2em] text-pewter">
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-silver-mist">
                     {criterion}
                   </div>
-                  <div className="mt-1 text-heading font-semibold text-frost">
+                  <div className="mt-1 text-heading font-semibold text-ink-black">
                     {mean.toFixed(2)}
                   </div>
                   <div className="text-[11px] text-slate-gray">mean / 5</div>
@@ -72,7 +72,7 @@ export default function Evals() {
             {/* Per the design system's "rhythmic contrast" rule: the evals
                 table is a Frost (white) card inside the dark canvas — dense
                 tabular reading content. */}
-            <div className="overflow-hidden rounded-card bg-frost shadow-card">
+            <div className="overflow-hidden rounded-card bg-paper-white shadow-card">
               <table className="w-full text-body">
                 <thead className="bg-stone-100 text-[10px] uppercase tracking-[0.2em] text-stone-500">
                   <tr>

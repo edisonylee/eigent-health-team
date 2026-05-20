@@ -55,13 +55,13 @@ export default function Agents() {
   return (
     <div className="px-6 py-8">
       <div className="mx-auto max-w-5xl">
-        <h1 className="mb-2 text-heading font-semibold text-frost">
+        <h1 className="mb-2 text-heading font-semibold text-ink-black">
           Agent roster
         </h1>
         <p className="mb-6 text-body text-slate-gray">
           Four specialists, coordinated by a CAMEL Workforce. Each can ask the
           user a clarifying question mid-run via the in-process{" "}
-          <code className="rounded bg-frost/10 px-1 text-frost">
+          <code className="rounded bg-paper-white/10 px-1 text-ink-black">
             request_human_input
           </code>{" "}
           tool.
@@ -73,14 +73,14 @@ export default function Agents() {
               <div className="flex items-center justify-between">
                 <Badge tone={ROLE_TONE[role]}>{role}</Badge>
                 {status && (
-                  <span className="font-mono text-[10px] text-pewter">
+                  <span className="font-mono text-[10px] text-silver-mist">
                     {status.backend} · {status.model}
                   </span>
                 )}
               </div>
 
               <div>
-                <h2 className="text-subheading font-medium text-frost">
+                <h2 className="text-subheading font-medium text-ink-black">
                   {ROLE_LABEL[role]}
                 </h2>
                 <p className="mt-1 text-body text-slate-gray">
@@ -89,7 +89,7 @@ export default function Agents() {
               </div>
 
               <div>
-                <div className="text-[10px] uppercase tracking-[0.2em] text-pewter">
+                <div className="text-[10px] uppercase tracking-[0.2em] text-silver-mist">
                   Tools
                 </div>
                 <div className="mt-1.5 flex flex-wrap gap-1">
@@ -120,10 +120,10 @@ export default function Agents() {
 
               {prompts && (
                 <details className="text-[12px] text-slate-gray">
-                  <summary className="cursor-pointer text-slate-gray hover:text-frost">
+                  <summary className="cursor-pointer text-slate-gray hover:text-ink-black">
                     system prompt
                   </summary>
-                  <pre className="mt-2 max-h-72 overflow-y-auto whitespace-pre-wrap rounded-default border border-twilight-ink bg-midnight-eclipse p-3 font-mono text-[11px] text-ghostly-gray">
+                  <pre className="mt-2 max-h-72 overflow-y-auto whitespace-pre-wrap rounded-default border border-frost-gray bg-cloud-canvas p-3 font-mono text-[11px] text-stone-gray">
                     {prompts[role]}
                   </pre>
                 </details>

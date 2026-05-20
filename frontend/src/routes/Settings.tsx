@@ -16,7 +16,7 @@ export default function Settings() {
   return (
     <div className="px-6 py-8">
       <div className="mx-auto max-w-5xl">
-        <h1 className="mb-2 text-heading font-semibold text-frost">Settings</h1>
+        <h1 className="mb-2 text-heading font-semibold text-ink-black">Settings</h1>
         <p className="mb-6 text-body text-slate-gray">
           Configure the model backend, inspect MCP servers, and manage local
           data.
@@ -75,23 +75,23 @@ function ModelTab() {
       <Card surface="starless">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-[10px] uppercase tracking-[0.2em] text-pewter">
+            <div className="text-[10px] uppercase tracking-[0.2em] text-silver-mist">
               Active backend
             </div>
-            <div className="mt-1 font-mono text-subheading text-frost">
+            <div className="mt-1 font-mono text-subheading text-ink-black">
               {status.backend} · {status.model}
             </div>
           </div>
           <div className="space-y-1 text-right text-[11px] text-slate-gray">
             <div>
               OpenAI key:{" "}
-              <span className={status.openai_key_set ? "text-vivid-green" : "text-slate-gray"}>
+              <span className={status.openai_key_set ? "text-status-done" : "text-slate-gray"}>
                 {status.openai_key_set ? "✓" : "—"}
               </span>
             </div>
             <div>
               Ollama reachable:{" "}
-              <span className={status.ollama_reachable ? "text-vivid-green" : "text-slate-gray"}>
+              <span className={status.ollama_reachable ? "text-status-done" : "text-slate-gray"}>
                 {status.ollama_reachable ? "✓" : "—"}
               </span>
             </div>
@@ -141,7 +141,7 @@ function ModelTab() {
       </Section>
 
       {error && (
-        <div className="rounded-default border border-crimson-red/30 bg-crimson-red/10 px-3 py-2 text-[12px] text-crimson-red">
+        <div className="rounded-default border border-status-error/30 bg-status-error/10 px-3 py-2 text-[12px] text-status-error">
           {error}
         </div>
       )}
@@ -169,7 +169,7 @@ function MCPTab() {
           <Card key={s.name} surface="starless">
             <div className="flex items-center justify-between">
               <div>
-                <div className="font-mono text-body text-frost">{s.name}</div>
+                <div className="font-mono text-body text-ink-black">{s.name}</div>
                 <div className="mt-1 text-[11px] text-slate-gray">
                   {s.error || (s.tools.length === 0 ? "no tools" : `${s.tools.length} tools`)}
                 </div>
@@ -194,7 +194,7 @@ function MCPTab() {
                 {s.tools.map((t) => (
                   <span
                     key={t.name}
-                    className="rounded bg-frost/5 px-2 py-0.5 font-mono text-[10px] text-ghostly-gray"
+                    className="rounded bg-paper-white/5 px-2 py-0.5 font-mono text-[10px] text-stone-gray"
                     title={t.description}
                   >
                     {t.name}
@@ -265,7 +265,7 @@ function DataTab() {
       <Card surface="starless">
         <p className="text-body text-slate-gray">
           Local data lives at{" "}
-          <code className="rounded bg-frost/10 px-1 text-frost">~/.healthos/</code> —
+          <code className="rounded bg-paper-white/10 px-1 text-ink-black">~/.healthos/</code> —
           SQLite DB, embedded Chroma vector store, and the notes directory the
           filesystem MCP server reads from.
         </p>
@@ -280,13 +280,13 @@ function DataTab() {
         </Button>
       </div>
 
-      <Card surface="starless" className="border border-crimson-red/30">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-crimson-red">
+      <Card surface="starless" className="border border-status-error/30">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-status-error">
           Danger zone
         </div>
-        <p className="mt-1.5 text-body text-ghostly-gray">
+        <p className="mt-1.5 text-body text-stone-gray">
           Wipe all local data — DB, vector store, notes. Type{" "}
-          <code className="rounded bg-frost/10 px-1 text-frost">WIPE</code> to
+          <code className="rounded bg-paper-white/10 px-1 text-ink-black">WIPE</code> to
           confirm.
         </p>
         <div className="mt-3 flex gap-2">
@@ -312,8 +312,8 @@ function DataTab() {
           className={
             "rounded-default border px-3 py-2 text-[12px] " +
             (message.kind === "ok"
-              ? "border-vivid-green/30 bg-vivid-green/10 text-vivid-green"
-              : "border-goldenrod/30 bg-goldenrod/10 text-goldenrod")
+              ? "border-status-done/30 bg-status-done/10 text-status-done"
+              : "border-fire-orange/30 bg-fire-orange/10 text-fire-orange")
           }
         >
           {message.text}
@@ -332,7 +332,7 @@ function Section({
 }) {
   return (
     <Card surface="starless">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-pewter">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-silver-mist">
         {title}
       </div>
       <div className="mt-3 space-y-3">{children}</div>

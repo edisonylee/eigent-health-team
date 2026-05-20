@@ -38,16 +38,16 @@ export default function AgentQuestionModal({ onAnswer }: AgentQuestionModalProps
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-midnight-eclipse/70 p-6 backdrop-blur-md md:items-center"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-cloud-canvas/70 p-6 backdrop-blur-md md:items-center"
       role="dialog"
       aria-modal="true"
     >
-      <div className="w-full max-w-lg overflow-hidden rounded-card bg-starless-night shadow-xl shadow-subtle-1">
-        <div className="border-b border-twilight-ink px-6 py-4">
-          <div className="text-[10px] uppercase tracking-[0.2em] text-goldenrod">
+      <div className="w-full max-w-lg overflow-hidden rounded-card bg-paper-white shadow-xl shadow-subtle-1">
+        <div className="border-b border-frost-gray px-6 py-4">
+          <div className="text-[10px] uppercase tracking-[0.2em] text-fire-orange">
             Human-in-the-loop · {ROLE_LABEL[head.role]} needs input
           </div>
-          <h2 className="mt-2 text-subheading font-medium text-frost">
+          <h2 className="mt-2 text-subheading font-medium text-ink-black">
             {head.question}
           </h2>
         </div>
@@ -61,7 +61,7 @@ export default function AgentQuestionModal({ onAnswer }: AgentQuestionModalProps
                   type="button"
                   onClick={() => submit(c)}
                   disabled={busy}
-                  className="rounded-default border border-twilight-ink bg-frost/5 px-3 py-2 text-left text-body text-frost transition-colors hover:bg-frost/10 hover:shadow-subtle-1 disabled:opacity-40"
+                  className="rounded-default border border-frost-gray bg-paper-white/5 px-3 py-2 text-left text-body text-ink-black transition-colors hover:bg-paper-white/10 hover:shadow-subtle-1 disabled:opacity-40"
                 >
                   {c}
                 </button>
@@ -91,7 +91,7 @@ export default function AgentQuestionModal({ onAnswer }: AgentQuestionModalProps
           )}
         </div>
 
-        <div className="flex items-center justify-between border-t border-twilight-ink bg-midnight-eclipse/40 px-6 py-3 text-[12px]">
+        <div className="flex items-center justify-between border-t border-frost-gray bg-cloud-canvas/40 px-6 py-3 text-[12px]">
           <span className="text-slate-gray">Not sure? Let the agent decide:</span>
           <Button
             variant="ghost"

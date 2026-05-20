@@ -2,9 +2,9 @@ import { type InputHTMLAttributes, type TextareaHTMLAttributes, forwardRef } fro
 import { cn } from "../../lib/cn";
 
 const base =
-  "w-full rounded-default bg-frost/5 px-3 py-2 text-body text-frost " +
+  "w-full rounded-default bg-paper-white/5 px-3 py-2 text-body text-ink-black " +
   "placeholder:text-slate-gray outline-none transition-[box-shadow,background] " +
-  "focus:bg-frost/10 focus:shadow-subtle-1 " +
+  "focus:bg-paper-white/10 focus:shadow-subtle-1 " +
   "disabled:opacity-40 disabled:pointer-events-none";
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(

@@ -33,7 +33,7 @@ export default function MemoPanel({ onFollowUp }: MemoPanelProps) {
 
   if (phase === "running") {
     return (
-      <div className="rounded-card border border-twilight-ink bg-starless-night p-6 text-body text-slate-gray">
+      <div className="rounded-card border border-frost-gray bg-paper-white p-6 text-body text-slate-gray">
         Agents are working — your health plan will appear here when the Plan
         Writer finishes.
       </div>
@@ -44,13 +44,13 @@ export default function MemoPanel({ onFollowUp }: MemoPanelProps) {
 
   return (
     <div className="space-y-3">
-      <article className="memo rounded-card bg-frost p-7 shadow-card">
+      <article className="memo rounded-card bg-paper-white p-7 shadow-card">
         <ReactMarkdown>{memo}</ReactMarkdown>
       </article>
 
       {phase === "done" && onFollowUp && (
-        <div className="rounded-card border border-twilight-ink bg-starless-night p-5">
-          <h3 className="text-[11px] font-semibold uppercase tracking-[0.2em] text-fuchsia-flare">
+        <div className="rounded-card border border-frost-gray bg-paper-white p-5">
+          <h3 className="text-[11px] font-semibold uppercase tracking-[0.2em] text-fire-orange">
             Follow-up
           </h3>
           <p className="mt-1.5 text-[12px] text-slate-gray">
@@ -67,13 +67,13 @@ export default function MemoPanel({ onFollowUp }: MemoPanelProps) {
               onKeyDown={(e) => e.key === "Enter" && submit()}
               placeholder="Anything to add to your profile?"
               disabled={submitting}
-              className="flex-1 rounded-default bg-frost/5 px-3 py-2 text-body text-frost placeholder:text-slate-gray outline-none transition-[box-shadow] focus:shadow-subtle-1 disabled:opacity-40"
+              className="flex-1 rounded-default bg-paper-white/5 px-3 py-2 text-body text-ink-black placeholder:text-slate-gray outline-none transition-[box-shadow] focus:shadow-subtle-1 disabled:opacity-40"
             />
             <button
               type="button"
               onClick={submit}
               disabled={!note.trim() || submitting}
-              className="rounded-pill bg-electric-blue px-5 py-2 text-body font-medium text-frost transition hover:brightness-110 disabled:opacity-40"
+              className="rounded-pill bg-fire-orange px-5 py-2 text-body font-medium text-ink-black transition hover:brightness-110 disabled:opacity-40"
             >
               {submitting ? "Refining…" : "Refine"}
             </button>

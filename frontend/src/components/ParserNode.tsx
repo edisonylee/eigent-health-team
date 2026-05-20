@@ -5,9 +5,9 @@ import { Badge } from "./ui/Badge";
 type ParserStatus = "idle" | "running" | "done";
 
 const SHELL: Record<ParserStatus, string> = {
-  idle: "border-dashed border-twilight-ink bg-starless-night text-slate-gray",
-  running: "border-electric-blue/70 bg-starless-night text-frost shadow-glow animate-pulse-glow",
-  done: "border-fuchsia-flare/60 bg-starless-night text-frost shadow-glow-fuchsia",
+  idle: "border-dashed border-frost-gray bg-paper-white text-slate-gray",
+  running: "border-fire-orange/70 bg-paper-white text-ink-black shadow-glow animate-pulse-glow",
+  done: "border-status-done/50 bg-paper-white text-ink-black",
 };
 
 interface ParserNodeData {
@@ -40,7 +40,7 @@ function ParserNodeImpl({ data }: NodeProps<ParserNodeData>) {
             : "drop a PDF or paste lab text to activate"}
       </div>
 
-      <Handle type="source" position={Position.Bottom} className="!bg-twilight-ink" />
+      <Handle type="source" position={Position.Bottom} className="!bg-frost-gray" />
     </div>
   );
 }

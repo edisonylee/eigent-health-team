@@ -1,28 +1,31 @@
 import { type HTMLAttributes, forwardRef } from "react";
 import { cn } from "../../lib/cn";
 
-type Surface = "starless" | "midnight" | "frost" | "gradient-nebula" | "gradient-twilight";
+type Surface = "paper" | "canvas" | "elevated" | "hero" | "starless";
 
 interface CardProps extends HTMLAttributes<HTMLDivElement> {
+  /**
+   * paper    — default Paper White feature card (most common)
+   * canvas   — transparent, sits on Cloud Canvas page bg with just a border
+   * elevated — pure white with the full multi-layer shadow stack
+   * hero     — Paper White, full shadow, used for the run-page banner
+   * starless — legacy alias for `paper`, kept so existing callsites work
+   */
   surface?: Surface;
-  /** Apply the default 24px card radius vs the smaller 9px "default" radius. */
+  /** 16px (`card`) or 8px (`default`) corner radius. */
   shape?: "card" | "default";
-  /** Add a 1px inset white shadow border (per design system). */
-  inset?: boolean;
 }
 
 const SURFACE: Record<Surface, string> = {
-  // Starless Night = subtle elevated card on the dark canvas
-  starless: "bg-starless-night text-frost",
-  midnight: "bg-midnight-eclipse text-frost",
-  // Light card for "rhythmic contrast" — memo + evals
-  frost: "bg-frost text-ash-gray shadow-card",
-  "gradient-nebula": "bg-gradient-nebula text-frost",
-  "gradient-twilight": "bg-gradient-twilight text-frost",
+  paper: "bg-paper-white text-ink-black shadow-xl",
+  canvas: "bg-transparent text-ink-black border border-frost-gray",
+  elevated: "bg-elevated-white text-ink-black shadow-card",
+  hero: "bg-paper-white text-ink-black shadow-card",
+  starless: "bg-paper-white text-ink-black shadow-xl",
 };
 
 export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
-  { surface = "starless", shape = "card", inset = true, className, ...props },
+  { surface = "paper", shape = "card", className, ...props },
   ref,
 ) {
   return (
@@ -31,7 +34,6 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
       className={cn(
         shape === "card" ? "rounded-card p-6" : "rounded-default p-4",
         SURFACE[surface],
-        inset && surface !== "frost" ? "shadow-subtle-1" : "",
         className,
       )}
       {...props}

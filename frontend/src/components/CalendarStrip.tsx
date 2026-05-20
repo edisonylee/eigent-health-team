@@ -16,14 +16,14 @@ import { Input, Textarea } from "./ui/Input";
 
 /** Tailwind class shortcuts per category. Same palette is used by TrendChart. */
 export const CATEGORY_COLOR: Record<EventCategory, string> = {
-  symptom: "bg-crimson-red",
-  meal: "bg-sunset-orange",
-  sleep: "bg-sky-blue",
-  exercise: "bg-vivid-green",
-  supplement: "bg-teal-glow",
-  medication: "bg-magenta-burst",
-  mood: "bg-goldenrod",
-  note: "bg-pewter",
+  symptom: "bg-status-error",
+  meal: "bg-fire-orange",
+  sleep: "bg-code-blue",
+  exercise: "bg-status-done",
+  supplement: "bg-code-blue",
+  medication: "bg-fire-orange",
+  mood: "bg-fire-orange",
+  note: "bg-silver-mist",
 };
 
 const CATEGORY_LABEL: Record<EventCategory, string> = {
@@ -84,27 +84,27 @@ export default function CalendarStrip() {
   const today = formatDay(new Date());
 
   return (
-    <div className="mb-5 rounded-card border border-twilight-ink bg-starless-night/60 p-4">
+    <div className="mb-5 rounded-card border border-frost-gray bg-paper-white/60 p-4">
       <div className="mb-3 flex items-baseline justify-between">
         <div>
           <div className="text-[10px] uppercase tracking-[0.18em] text-slate-gray">
             Calendar · last 28 days
           </div>
-          <div className="mt-0.5 font-mono text-[11px] text-pewter">
+          <div className="mt-0.5 font-mono text-[11px] text-silver-mist">
             {start} → {end}
           </div>
         </div>
         <button
           type="button"
           onClick={() => setSelectedDay(today)}
-          className="rounded-pill border border-ghostly-gray/40 bg-transparent px-3 py-1 text-[11px] text-frost hover:bg-frost/5"
+          className="rounded-pill border border-stone-gray/40 bg-transparent px-3 py-1 text-[11px] text-ink-black hover:bg-paper-white/5"
         >
           + Log event
         </button>
       </div>
 
       {/* Day-of-week headers (Mon-Sun derived from the actual window). */}
-      <div className="mb-1 grid grid-cols-7 gap-1 px-0.5 font-mono text-[9px] uppercase tracking-wider text-pewter">
+      <div className="mb-1 grid grid-cols-7 gap-1 px-0.5 font-mono text-[9px] uppercase tracking-wider text-silver-mist">
         {days.slice(0, 7).map((d) => (
           <div key={d} className="text-center">
             {new Date(d + "T12:00:00").toLocaleDateString(undefined, {
@@ -129,8 +129,8 @@ export default function CalendarStrip() {
                 "justify-between rounded-default border p-1.5 text-left " +
                 "transition-[background,border-color] " +
                 (isToday
-                  ? "border-electric-blue/60 bg-electric-blue/10 hover:bg-electric-blue/15"
-                  : "border-twilight-ink bg-frost/[0.02] hover:bg-frost/5")
+                  ? "border-fire-orange/60 bg-fire-orange/10 hover:bg-fire-orange/15"
+                  : "border-frost-gray bg-paper-white/[0.02] hover:bg-paper-white/5")
               }
               title={`${day} — ${dayEvents.length} event${dayEvents.length === 1 ? "" : "s"}`}
             >
@@ -138,13 +138,13 @@ export default function CalendarStrip() {
                 <span
                   className={
                     "font-mono text-[10px] " +
-                    (isToday ? "text-frost" : "text-slate-gray")
+                    (isToday ? "text-ink-black" : "text-slate-gray")
                   }
                 >
                   {parseInt(day.split("-")[2], 10)}
                 </span>
                 {dayEvents.length > 4 && (
-                  <span className="font-mono text-[9px] text-pewter">
+                  <span className="font-mono text-[9px] text-silver-mist">
                     +{dayEvents.length - 4}
                   </span>
                 )}
@@ -245,7 +245,7 @@ function DayEventsModal({
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[80vh] overflow-y-auto p-6">
-        <DialogTitle className="text-subheading font-semibold text-frost">
+        <DialogTitle className="text-subheading font-semibold text-ink-black">
           {day ? prettyDay(day) : "Log event"}
         </DialogTitle>
         <p className="mt-0.5 text-[12px] text-slate-gray">
@@ -259,17 +259,17 @@ function DayEventsModal({
             {events.map((e) => (
               <li
                 key={e.id}
-                className="flex items-start gap-2 rounded-default border border-twilight-ink bg-frost/[0.03] p-3"
+                className="flex items-start gap-2 rounded-default border border-frost-gray bg-paper-white/[0.03] p-3"
               >
                 <span
                   className={`mt-1 h-2 w-2 shrink-0 rounded-full ${CATEGORY_COLOR[e.category]}`}
                   title={e.category}
                 />
                 <div className="min-w-0 flex-1">
-                  <div className="text-[11px] uppercase tracking-wider text-pewter">
+                  <div className="text-[11px] uppercase tracking-wider text-silver-mist">
                     {CATEGORY_LABEL[e.category]}
                   </div>
-                  <div className="mt-0.5 text-[13px] text-frost">
+                  <div className="mt-0.5 text-[13px] text-ink-black">
                     {e.description}
                   </div>
                   {e.tags.length > 0 && (
@@ -277,7 +277,7 @@ function DayEventsModal({
                       {e.tags.map((t) => (
                         <span
                           key={t}
-                          className="rounded-pill bg-frost/5 px-2 py-0.5 font-mono text-[9px] text-ghostly-gray"
+                          className="rounded-pill bg-paper-white/5 px-2 py-0.5 font-mono text-[9px] text-stone-gray"
                         >
                           #{t}
                         </span>
@@ -288,7 +288,7 @@ function DayEventsModal({
                 <button
                   type="button"
                   onClick={() => remove(e.id)}
-                  className="text-[10px] uppercase tracking-wider text-slate-gray hover:text-crimson-red"
+                  className="text-[10px] uppercase tracking-wider text-slate-gray hover:text-status-error"
                   title="Delete event"
                 >
                   delete
@@ -298,7 +298,7 @@ function DayEventsModal({
           </ul>
         )}
 
-        <div className="mt-5 space-y-3 border-t border-twilight-ink pt-4">
+        <div className="mt-5 space-y-3 border-t border-frost-gray pt-4">
           <div className="text-[10px] uppercase tracking-wider text-slate-gray">
             Add event
           </div>
@@ -318,13 +318,13 @@ function DayEventsModal({
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value as EventCategory)}
-                className="mt-1 w-full rounded-default bg-frost/5 px-3 py-2 text-body text-frost outline-none focus:bg-frost/10 focus:shadow-subtle-1"
+                className="mt-1 w-full rounded-default bg-paper-white/5 px-3 py-2 text-body text-ink-black outline-none focus:bg-paper-white/10 focus:shadow-subtle-1"
               >
                 {EVENT_CATEGORIES.map((c) => (
                   <option
                     key={c}
                     value={c}
-                    className="bg-starless-night text-frost"
+                    className="bg-paper-white text-ink-black"
                   >
                     {CATEGORY_LABEL[c]}
                   </option>
@@ -349,7 +349,7 @@ function DayEventsModal({
           />
 
           {error && (
-            <div className="rounded-default border border-crimson-red/40 bg-crimson-red/10 px-3 py-2 text-[12px] text-crimson-red">
+            <div className="rounded-default border border-status-error/40 bg-status-error/10 px-3 py-2 text-[12px] text-status-error">
               {error}
             </div>
           )}

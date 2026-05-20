@@ -30,14 +30,14 @@ export function DialogContent({
 }: DialogContentProps) {
   return (
     <RadixDialog.Portal>
-      <RadixDialog.Overlay className="fixed inset-0 z-50 bg-midnight-eclipse/70 backdrop-blur-sm data-[state=open]:animate-in data-[state=open]:fade-in" />
+      <RadixDialog.Overlay className="fixed inset-0 z-50 bg-cloud-canvas/70 backdrop-blur-sm data-[state=open]:animate-in data-[state=open]:fade-in" />
       <RadixDialog.Content
         onInteractOutside={(e) => {
           if (!closeOnOutside) e.preventDefault();
         }}
         className={cn(
           "fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2",
-          "rounded-card bg-starless-night shadow-xl shadow-subtle-1",
+          "rounded-card bg-paper-white shadow-xl shadow-subtle-1",
           "focus:outline-none",
           className,
         )}

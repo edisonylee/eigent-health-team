@@ -9,9 +9,9 @@ interface Props {
 }
 
 const itemCls =
-  "cursor-pointer rounded-default px-3 py-2 text-body text-frost aria-selected:bg-frost/5 aria-selected:shadow-subtle-1";
+  "cursor-pointer rounded-default px-3 py-2 text-body text-ink-black aria-selected:bg-paper-white/5 aria-selected:shadow-subtle-1";
 const groupHeadingCls =
-  "px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-pewter";
+  "px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-silver-mist";
 
 export default function CommandPalette({ open, onOpenChange, onNavigate }: Props) {
   const password = useStore((s) => s.password);
@@ -26,21 +26,21 @@ export default function CommandPalette({ open, onOpenChange, onNavigate }: Props
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-midnight-eclipse/70 px-6 pt-32 backdrop-blur-md"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-cloud-canvas/70 px-6 pt-32 backdrop-blur-md"
       onClick={() => onOpenChange(false)}
     >
       <div
-        className="w-full max-w-lg overflow-hidden rounded-card bg-starless-night shadow-xl shadow-subtle-1"
+        className="w-full max-w-lg overflow-hidden rounded-card bg-paper-white shadow-xl shadow-subtle-1"
         onClick={(e) => e.stopPropagation()}
       >
         <Command>
           <Command.Input
             autoFocus
             placeholder="Type a command…"
-            className="w-full border-b border-twilight-ink bg-transparent px-4 py-3 text-body text-frost placeholder:text-slate-gray outline-none"
+            className="w-full border-b border-frost-gray bg-transparent px-4 py-3 text-body text-ink-black placeholder:text-slate-gray outline-none"
           />
           <Command.List className="max-h-80 overflow-y-auto p-2">
-            <Command.Empty className="px-4 py-3 text-[12px] text-pewter">
+            <Command.Empty className="px-4 py-3 text-[12px] text-silver-mist">
               No matches.
             </Command.Empty>
             <Command.Group heading="Navigate" className={groupHeadingCls}>

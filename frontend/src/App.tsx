@@ -183,33 +183,36 @@ export default function App() {
   return (
     <div className="px-6 py-8">
       <div className="mx-auto max-w-5xl">
-        {/* Hero — Nebula Horizon gradient banner per the design system */}
-        <Card surface="gradient-nebula" className="relative mb-6 overflow-hidden">
-          <div className="text-[10px] uppercase tracking-[0.2em] text-frost/80">
+        {/* Hero — Firecrawl's centered headline on Paper White with the
+            full Feature-Card shadow. Single Fire Orange "active" stripe. */}
+        <Card surface="hero" className="relative mb-6 overflow-hidden">
+          <div className="flex items-center gap-2 text-caption uppercase tracking-[0.1px] text-slate-gray">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-fire-orange" />
             Personalized Health Team
           </div>
-          <h1 className="mt-2 text-heading font-semibold text-frost">
+          <h1 className="mt-2 text-heading font-medium text-ink-black">
             Four agents. One plan.
           </h1>
-          <p className="mt-2 max-w-xl text-body text-frost/80">
+          <p className="mt-2 max-w-xl text-body text-slate-gray">
             A CAMEL Workforce — research, assessment, safety review, plan — over a curated knowledge graph and your personal context.
           </p>
           {showCost && (
             <div className="absolute right-6 top-6 text-right font-mono">
-              <div className="text-[10px] uppercase tracking-wider text-frost/60">
+              <div className="text-caption uppercase tracking-[0.1px] text-silver-mist">
                 cost so far
               </div>
-              <div className="text-subheading text-frost">
+              <div className="text-subheading text-ink-black">
                 ${totalCost.toFixed(4)}
               </div>
             </div>
           )}
         </Card>
 
-        <Card surface="starless" shape="default" className="mb-5 border border-goldenrod/30 bg-goldenrod/10">
-          <p className="text-[12px] leading-relaxed text-goldenrod">
-            Educational information only — not medical advice, and not a substitute
-            for a qualified healthcare professional. Seek prompt care for any concerning symptoms.
+        <Card surface="canvas" shape="default" className="mb-5 border border-pale-sienna bg-pale-sienna/40">
+          <p className="text-body leading-relaxed text-stone-gray">
+            <span className="font-medium text-ink-black">Educational information only</span>{" "}
+            — not medical advice, and not a substitute for a qualified
+            healthcare professional. Seek prompt care for any concerning symptoms.
           </p>
         </Card>
 
@@ -258,7 +261,7 @@ export default function App() {
             Paste text
           </Button>
           {labLoading && <span>parsing…</span>}
-          {labError && <span className="text-crimson-red">labs: {labError}</span>}
+          {labError && <span className="text-status-error">labs: {labError}</span>}
         </div>
 
         {showLabPaste && (
@@ -302,7 +305,7 @@ export default function App() {
         <TrendChart />
 
         {phase === "error" && (
-          <Card surface="starless" shape="default" className="mb-4 border border-crimson-red/40 bg-crimson-red/10 text-crimson-red">
+          <Card surface="starless" shape="default" className="mb-4 border border-status-error/40 bg-status-error/10 text-status-error">
             <p className="text-body">{error}</p>
           </Card>
         )}
@@ -311,7 +314,7 @@ export default function App() {
 
         {phase === "running" && eventLog.length > 0 && (
           <details className="mt-6" open>
-            <summary className="cursor-pointer text-[11px] uppercase tracking-wider text-slate-gray hover:text-frost">
+            <summary className="cursor-pointer text-[11px] uppercase tracking-wider text-slate-gray hover:text-ink-black">
               live timeline · {eventLog.length} event
               {eventLog.length === 1 ? "" : "s"}
             </summary>
@@ -329,14 +332,14 @@ export default function App() {
           <div className="mt-3 text-center">
             <Link
               to={`/runs/${taskId}/timeline`}
-              className="inline-block rounded-pill border border-twilight-ink bg-frost/5 px-3 py-1.5 text-[12px] text-ghostly-gray hover:bg-frost/10 hover:text-frost"
+              className="inline-block rounded-pill border border-frost-gray bg-paper-white/5 px-3 py-1.5 text-[12px] text-stone-gray hover:bg-paper-white/10 hover:text-ink-black"
             >
               View full timeline →
             </Link>
           </div>
         )}
 
-        <p className="mt-3 text-center text-[11px] text-pewter">
+        <p className="mt-3 text-center text-[11px] text-silver-mist">
           Click any worker node to see its system prompt, streamed output, tool
           calls, and usage.
         </p>

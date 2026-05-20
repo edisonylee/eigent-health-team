@@ -22,14 +22,14 @@ const CATEGORY_LABEL: Record<EventCategory, string> = {
 
 // Fill colors used inline (SVG <rect>) — mirrors CATEGORY_COLOR tailwind classes.
 const CATEGORY_FILL: Record<EventCategory, string> = {
-  symptom: "var(--color-crimson-red)",
-  meal: "var(--color-sunset-orange)",
-  sleep: "var(--color-sky-blue)",
-  exercise: "var(--color-vivid-green)",
-  supplement: "var(--color-teal-glow)",
-  medication: "var(--color-magenta-burst)",
-  mood: "var(--color-goldenrod)",
-  note: "var(--color-pewter)",
+  symptom: "var(--color-status-error)",
+  meal: "var(--color-fire-orange)",
+  sleep: "var(--color-code-blue)",
+  exercise: "var(--color-status-done)",
+  supplement: "var(--color-code-blue)",
+  medication: "var(--color-fire-orange)",
+  mood: "var(--color-fire-orange)",
+  note: "var(--color-silver-mist)",
 };
 
 export default function TrendChart() {
@@ -65,13 +65,13 @@ export default function TrendChart() {
   const windowTotal = days.reduce((a, d) => a + dayTotal(d), 0);
 
   return (
-    <div className="mb-5 rounded-card border border-twilight-ink bg-starless-night/60 p-4">
+    <div className="mb-5 rounded-card border border-frost-gray bg-paper-white/60 p-4">
       <div className="mb-3 flex items-baseline justify-between">
         <div>
           <div className="text-[10px] uppercase tracking-[0.18em] text-slate-gray">
             Trend · per-category counts
           </div>
-          <div className="mt-0.5 font-mono text-[11px] text-pewter">
+          <div className="mt-0.5 font-mono text-[11px] text-silver-mist">
             {windowTotal} event{windowTotal === 1 ? "" : "s"} across 28 days
           </div>
         </div>
@@ -79,7 +79,7 @@ export default function TrendChart() {
           <button
             type="button"
             onClick={() => setHidden(new Set())}
-            className="rounded-pill border border-ghostly-gray/40 px-3 py-1 text-[11px] text-frost hover:bg-frost/5"
+            className="rounded-pill border border-stone-gray/40 px-3 py-1 text-[11px] text-ink-black hover:bg-paper-white/5"
           >
             Show all
           </button>
@@ -107,7 +107,7 @@ export default function TrendChart() {
                 y={62}
                 width={9}
                 height={1}
-                fill="var(--color-twilight-ink)"
+                fill="var(--color-frost-gray)"
                 onMouseEnter={() => setHover(day)}
               />
             );
@@ -148,11 +148,11 @@ export default function TrendChart() {
       </svg>
 
       {/* Hover detail line — keeps the surface compact instead of a popover */}
-      <div className="mt-1 min-h-[18px] font-mono text-[11px] text-pewter">
+      <div className="mt-1 min-h-[18px] font-mono text-[11px] text-silver-mist">
         {hover ? (
           <HoverDetail day={hover} inner={byDay.get(hover)} hidden={hidden} />
         ) : (
-          <span className="text-pewter/70">hover a day for a breakdown</span>
+          <span className="text-silver-mist/70">hover a day for a breakdown</span>
         )}
       </div>
 
@@ -176,8 +176,8 @@ export default function TrendChart() {
                 "flex items-center gap-1.5 rounded-pill border px-2 py-0.5 " +
                 "text-[10px] transition-[opacity,border-color] " +
                 (off
-                  ? "border-twilight-ink text-slate-gray opacity-60"
-                  : "border-ghostly-gray/30 text-frost hover:bg-frost/5")
+                  ? "border-frost-gray text-slate-gray opacity-60"
+                  : "border-stone-gray/30 text-ink-black hover:bg-paper-white/5")
               }
               title={off ? `Show ${cat}` : `Hide ${cat}`}
             >
@@ -211,7 +211,7 @@ function HoverDetail({
   if (total === 0) {
     return (
       <span>
-        <span className="text-frost">{day}</span> · no events
+        <span className="text-ink-black">{day}</span> · no events
       </span>
     );
   }
@@ -220,7 +220,7 @@ function HoverDetail({
   ).map((c) => `${c} ${inner!.get(c)}`);
   return (
     <span>
-      <span className="text-frost">{day}</span> · {parts.join(" · ")}
+      <span className="text-ink-black">{day}</span> · {parts.join(" · ")}
     </span>
   );
 }

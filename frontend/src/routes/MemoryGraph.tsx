@@ -19,9 +19,9 @@ const TYPE_STYLE: Record<string, { color: string; label: string }> = {
   nutrient:   { color: "#B855E7", label: "Nutrient" },     // magenta burst
   condition:  { color: "#FF5252", label: "Condition" },    // crimson red
   provider:   { color: "#60A5FA", label: "Provider" },     // sky blue
-  medication: { color: "#FFB764", label: "Medication" },   // goldenrod
+  medication: { color: "#FFB764", label: "Medication" },   // fire-orange
   food:       { color: "#16C253", label: "Food" },         // vivid green
-  place:      { color: "#999999", label: "Place" },        // pewter
+  place:      { color: "#999999", label: "Place" },        // silver-mist
   person:     { color: "#DD55E7", label: "Person" },       // fuchsia flare
   activity:   { color: "#1CECBB", label: "Activity" },     // teal glow
   biomarker:  { color: "#0088FF", label: "Biomarker" },    // electric blue
@@ -113,7 +113,7 @@ export default function MemoryGraph() {
       <div className="mx-auto max-w-6xl">
         <header className="mb-4 flex items-end justify-between">
           <div>
-            <h1 className="text-heading font-semibold text-frost">
+            <h1 className="text-heading font-semibold text-ink-black">
               Memory Graph
             </h1>
             <p className="mt-1 text-body text-slate-gray">
@@ -159,8 +159,8 @@ export default function MemoryGraph() {
                   className={cn(
                     "inline-flex items-center gap-1 rounded-pill border px-2.5 py-0.5 transition-colors",
                     active
-                      ? "border-frost bg-frost text-midnight-eclipse"
-                      : "border-twilight-ink bg-frost/5 text-ghostly-gray hover:bg-frost/10",
+                      ? "border-cloud-canvas bg-paper-white text-cloud-canvas"
+                      : "border-frost-gray bg-paper-white/5 text-stone-gray hover:bg-paper-white/10",
                   )}
                 >
                   <span
@@ -176,7 +176,7 @@ export default function MemoryGraph() {
               <button
                 type="button"
                 onClick={() => setTypeFilter(new Set())}
-                className="text-slate-gray underline-offset-2 hover:underline hover:text-frost"
+                className="text-slate-gray underline-offset-2 hover:underline hover:text-ink-black"
               >
                 clear
               </button>
@@ -185,14 +185,14 @@ export default function MemoryGraph() {
         )}
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">
-          <div className="h-[640px] w-full overflow-hidden rounded-card border border-twilight-ink bg-starless-night">
+          <div className="h-[640px] w-full overflow-hidden rounded-card border border-frost-gray bg-paper-white">
             {isLoading && (
               <div className="flex h-full items-center justify-center text-body text-slate-gray">
                 Loading…
               </div>
             )}
             {error && (
-              <div className="flex h-full items-center justify-center text-body text-crimson-red">
+              <div className="flex h-full items-center justify-center text-body text-status-error">
                 {String(error)}
               </div>
             )}
@@ -253,7 +253,7 @@ export default function MemoryGraph() {
                   entity matched a canonical node in the health graph.
                 </p>
                 {data && (
-                  <p className="font-mono text-[11px] text-pewter">
+                  <p className="font-mono text-[11px] text-silver-mist">
                     {data.nodes.length} nodes · {data.links.length} edges
                   </p>
                 )}
@@ -282,11 +282,11 @@ function EntityDetailPanel({
           className="h-3 w-3 rounded-full"
           style={{ backgroundColor: color }}
         />
-        <span className="text-[10px] uppercase tracking-[0.2em] text-pewter">
+        <span className="text-[10px] uppercase tracking-[0.2em] text-silver-mist">
           {label}
         </span>
       </div>
-      <h2 className="text-subheading font-semibold text-frost">{node.name}</h2>
+      <h2 className="text-subheading font-semibold text-ink-black">{node.name}</h2>
       {node.canonical_id && (
         <div className="mt-1.5">
           <Badge tone="teal">canonical: {node.canonical_id}</Badge>
@@ -294,43 +294,43 @@ function EntityDetailPanel({
       )}
       <dl className="mt-3 grid grid-cols-3 gap-2 font-mono text-[11px] text-slate-gray">
         <div>
-          <dt className="text-pewter">mentions</dt>
-          <dd className="text-frost">{node.mention_count}</dd>
+          <dt className="text-silver-mist">mentions</dt>
+          <dd className="text-ink-black">{node.mention_count}</dd>
         </div>
         <div>
-          <dt className="text-pewter">first seen</dt>
-          <dd className="text-frost">
+          <dt className="text-silver-mist">first seen</dt>
+          <dd className="text-ink-black">
             {node.first_seen ? formatTs(node.first_seen) : "—"}
           </dd>
         </div>
         <div>
-          <dt className="text-pewter">last seen</dt>
-          <dd className="text-frost">
+          <dt className="text-silver-mist">last seen</dt>
+          <dd className="text-ink-black">
             {node.last_seen ? formatTs(node.last_seen) : "—"}
           </dd>
         </div>
       </dl>
 
-      <h3 className="mt-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-pewter">
+      <h3 className="mt-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-silver-mist">
         Mentions ({mentions.length})
       </h3>
       <ol className="mt-2 space-y-2">
         {mentions.map((m) => (
           <li
             key={m.id}
-            className="rounded-default border border-twilight-ink bg-midnight-eclipse p-2 text-[11px]"
+            className="rounded-default border border-frost-gray bg-cloud-canvas p-2 text-[11px]"
           >
             <div className="mb-0.5 flex justify-between text-slate-gray">
               <span className="font-mono">{m.source_kind}</span>
               <span className="font-mono">{formatTs(m.ts)}</span>
             </div>
-            <div className="text-ghostly-gray">
+            <div className="text-stone-gray">
               {m.context_snippet || "(no snippet)"}
             </div>
           </li>
         ))}
         {mentions.length === 0 && (
-          <li className="text-[11px] text-pewter">No recorded mentions.</li>
+          <li className="text-[11px] text-silver-mist">No recorded mentions.</li>
         )}
       </ol>
     </div>

@@ -74,9 +74,9 @@ export default function TaskGraph() {
       data: { label: "Coordinator + Planner" },
       draggable: false,
       style: {
-        background: "var(--color-starless-night)",
-        color: "var(--color-frost)",
-        border: "1px solid var(--color-twilight-ink)",
+        background: "var(--color-paper-white)",
+        color: "var(--color-ink-black)",
+        border: "1px solid var(--color-frost-gray)",
         borderRadius: 9999,
         fontSize: 12,
         width: 200,
@@ -91,10 +91,10 @@ export default function TaskGraph() {
       data: { label: done ? "Health Plan  ✓" : "Health Plan" },
       draggable: false,
       style: {
-        background: done ? "var(--color-vivid-green)" : "var(--color-starless-night)",
-        color: done ? "var(--color-midnight-eclipse)" : "var(--color-frost)",
+        background: done ? "var(--color-status-done)" : "var(--color-paper-white)",
+        color: done ? "var(--color-cloud-canvas)" : "var(--color-ink-black)",
         border: "1px solid",
-        borderColor: done ? "var(--color-vivid-green)" : "var(--color-twilight-ink)",
+        borderColor: done ? "var(--color-status-done)" : "var(--color-frost-gray)",
         borderRadius: 9,
         fontSize: 12,
         width: 200,
@@ -114,7 +114,7 @@ export default function TaskGraph() {
       target: "coordinator",
       animated: labLoading,
       style: {
-        stroke: labPanel ? "var(--color-fuchsia-flare)" : "var(--color-twilight-ink)",
+        stroke: labPanel ? "var(--color-fire-orange)" : "var(--color-frost-gray)",
         strokeDasharray: labPanel ? undefined : "4 4",
       },
     });
@@ -128,10 +128,10 @@ export default function TaskGraph() {
         animated: running,
         style: {
           stroke: running
-            ? "var(--color-electric-blue)"
+            ? "var(--color-fire-orange)"
             : done
-              ? "var(--color-vivid-green)"
-              : "var(--color-twilight-ink)",
+              ? "var(--color-status-done)"
+              : "var(--color-frost-gray)",
         },
       });
       out.push({
@@ -140,7 +140,7 @@ export default function TaskGraph() {
         target: "memo",
         animated: false,
         style: {
-          stroke: done ? "var(--color-vivid-green)" : "var(--color-twilight-ink)",
+          stroke: done ? "var(--color-status-done)" : "var(--color-frost-gray)",
         },
       });
     }
@@ -148,7 +148,7 @@ export default function TaskGraph() {
   }, [workers, labLoading, labPanel]);
 
   return (
-    <div className="h-[500px] w-full overflow-hidden rounded-card border border-twilight-ink bg-starless-night">
+    <div className="h-[500px] w-full overflow-hidden rounded-card border border-frost-gray bg-paper-white">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -161,7 +161,7 @@ export default function TaskGraph() {
         }}
         proOptions={{ hideAttribution: true }}
       >
-        <Background color="var(--color-twilight-ink)" gap={24} size={1} />
+        <Background color="var(--color-frost-gray)" gap={24} size={1} />
       </ReactFlow>
     </div>
   );

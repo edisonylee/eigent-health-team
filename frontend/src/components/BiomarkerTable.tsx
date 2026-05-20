@@ -9,10 +9,10 @@ const FLAG_TONE: Record<string, "neutral" | "gold" | "green"> = {
 };
 
 const FLAG_BORDER: Record<string, string> = {
-  low: "border-goldenrod/40",
-  high: "border-goldenrod/40",
-  normal: "border-vivid-green/40",
-  unknown: "border-twilight-ink",
+  low: "border-fire-orange/40",
+  high: "border-fire-orange/40",
+  normal: "border-status-done/40",
+  unknown: "border-frost-gray",
 };
 
 /** Persistent row of parsed biomarkers — visible while the agents work. */
@@ -25,10 +25,10 @@ export default function BiomarkerTable() {
   const meta = [panel.lab_name, panel.date].filter(Boolean).join(" · ");
 
   return (
-    <div className="mb-5 rounded-card border border-twilight-ink bg-starless-night p-5">
+    <div className="mb-5 rounded-card border border-frost-gray bg-paper-white p-5">
       <div className="mb-3 flex items-baseline justify-between">
         <div>
-          <h3 className="text-subheading font-medium text-frost">Lab values</h3>
+          <h3 className="text-subheading font-medium text-ink-black">Lab values</h3>
           {meta && (
             <p className="font-mono text-[10px] uppercase tracking-wider text-slate-gray">
               {meta}
@@ -38,7 +38,7 @@ export default function BiomarkerTable() {
         <button
           type="button"
           onClick={() => setLabPanel(null)}
-          className="text-[11px] text-slate-gray hover:text-frost"
+          className="text-[11px] text-slate-gray hover:text-ink-black"
         >
           remove
         </button>
@@ -48,17 +48,17 @@ export default function BiomarkerTable() {
         {panel.biomarkers.map((b, i) => (
           <div
             key={i}
-            className={`rounded-default border bg-midnight-eclipse px-3 py-2 ${FLAG_BORDER[b.flag] || FLAG_BORDER.unknown}`}
+            className={`rounded-default border bg-cloud-canvas px-3 py-2 ${FLAG_BORDER[b.flag] || FLAG_BORDER.unknown}`}
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="truncate text-[11px] font-medium text-frost">
+              <span className="truncate text-[11px] font-medium text-ink-black">
                 {b.name}
               </span>
               {b.flag !== "unknown" && (
                 <Badge tone={FLAG_TONE[b.flag] || "neutral"}>{b.flag}</Badge>
               )}
             </div>
-            <div className="mt-1 font-mono text-[13px] text-frost">
+            <div className="mt-1 font-mono text-[13px] text-ink-black">
               {b.value}
               {b.unit ? (
                 <span className="ml-1 text-slate-gray">{b.unit}</span>

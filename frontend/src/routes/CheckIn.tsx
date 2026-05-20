@@ -82,7 +82,7 @@ export default function CheckIn() {
   return (
     <div className="px-6 py-8">
       <div className="mx-auto max-w-5xl">
-        <h1 className="mb-2 text-heading font-semibold text-frost">
+        <h1 className="mb-2 text-heading font-semibold text-ink-black">
           Daily check-in
         </h1>
         <p className="mb-6 text-body text-slate-gray">
@@ -112,7 +112,7 @@ export default function CheckIn() {
               max={16}
               value={sleep}
               onChange={(e) => setSleep(e.target.value)}
-              className="mt-1 w-32 rounded-default bg-frost/5 px-3 py-1.5 text-body text-frost outline-none focus:shadow-subtle-1"
+              className="mt-1 w-32 rounded-default bg-paper-white/5 px-3 py-1.5 text-body text-ink-black outline-none focus:shadow-subtle-1"
             />
           </label>
           <label className="block text-[12px] text-slate-gray">
@@ -129,14 +129,14 @@ export default function CheckIn() {
             {add.isPending ? "Saving…" : "Log check-in"}
           </Button>
           {error && (
-            <div className="rounded-default border border-crimson-red/30 bg-crimson-red/10 px-3 py-2 text-[12px] text-crimson-red">
+            <div className="rounded-default border border-status-error/30 bg-status-error/10 px-3 py-2 text-[12px] text-status-error">
               {error}
             </div>
           )}
         </Card>
 
         <Card surface="starless" className="mt-6">
-          <h2 className="text-subheading font-medium text-frost">
+          <h2 className="text-subheading font-medium text-ink-black">
             Weekly synthesis
           </h2>
           <p className="mt-1 text-body text-slate-gray">
@@ -145,13 +145,13 @@ export default function CheckIn() {
             (≈1/10th of a full run cost).
           </p>
           {!lastDoneRun && (
-            <p className="mt-2 text-[12px] text-goldenrod">
+            <p className="mt-2 text-[12px] text-fire-orange">
               You need a completed plan first. Run one from{" "}
-              <code className="rounded bg-frost/10 px-1 text-frost">/</code>.
+              <code className="rounded bg-paper-white/10 px-1 text-ink-black">/</code>.
             </p>
           )}
           {lastDoneRun && recentSeven.length === 0 && (
-            <p className="mt-2 text-[12px] text-goldenrod">
+            <p className="mt-2 text-[12px] text-fire-orange">
               Log at least one check-in before running the synthesis.
             </p>
           )}
@@ -166,13 +166,13 @@ export default function CheckIn() {
           </Button>
         </Card>
 
-        <h2 className="mt-8 text-subheading font-medium text-frost">
+        <h2 className="mt-8 text-subheading font-medium text-ink-black">
           Recent check-ins
         </h2>
-        <div className="mt-2 overflow-hidden rounded-card border border-twilight-ink bg-starless-night">
+        <div className="mt-2 overflow-hidden rounded-card border border-frost-gray bg-paper-white">
           {checkIns && checkIns.length > 0 ? (
             <table className="w-full text-body">
-              <thead className="bg-midnight-eclipse/60 text-[10px] uppercase tracking-[0.2em] text-pewter">
+              <thead className="bg-cloud-canvas/60 text-[10px] uppercase tracking-[0.2em] text-silver-mist">
                 <tr>
                   <th className="px-4 py-2 text-left">Day</th>
                   <th className="px-4 py-2 text-right">Energy</th>
@@ -183,17 +183,17 @@ export default function CheckIn() {
               </thead>
               <tbody>
                 {checkIns.map((c) => (
-                  <tr key={c.id} className="border-t border-twilight-ink">
-                    <td className="px-4 py-2 font-mono text-[12px] text-ghostly-gray">
+                  <tr key={c.id} className="border-t border-frost-gray">
+                    <td className="px-4 py-2 font-mono text-[12px] text-stone-gray">
                       {c.day}
                     </td>
-                    <td className="px-4 py-2 text-right text-frost">
+                    <td className="px-4 py-2 text-right text-ink-black">
                       {c.energy ?? "—"}
                     </td>
-                    <td className="px-4 py-2 text-right text-frost">
+                    <td className="px-4 py-2 text-right text-ink-black">
                       {c.sleep_hours ?? "—"}
                     </td>
-                    <td className="px-4 py-2 text-right text-frost">
+                    <td className="px-4 py-2 text-right text-ink-black">
                       {c.mood ?? "—"}
                     </td>
                     <td className="px-4 py-2 text-[12px] text-slate-gray">
@@ -204,7 +204,7 @@ export default function CheckIn() {
               </tbody>
             </table>
           ) : (
-            <div className="px-4 py-6 text-center text-[12px] text-pewter">
+            <div className="px-4 py-6 text-center text-[12px] text-silver-mist">
               No check-ins yet.
             </div>
           )}
@@ -268,8 +268,8 @@ function Scale({
   return (
     <div>
       <div className="flex items-baseline justify-between text-[12px]">
-        <span className="text-frost">{label}</span>
-        <span className="text-pewter">{hint}</span>
+        <span className="text-ink-black">{label}</span>
+        <span className="text-silver-mist">{hint}</span>
       </div>
       <div className="mt-1.5 flex gap-1.5">
         {SCALE.map((n) => (
@@ -280,8 +280,8 @@ function Scale({
             className={cn(
               "h-10 w-10 rounded-default border text-body transition-colors",
               value === n
-                ? "border-electric-blue bg-electric-blue text-frost shadow-glow"
-                : "border-twilight-ink bg-frost/5 text-ghostly-gray hover:bg-frost/10",
+                ? "border-fire-orange bg-fire-orange text-ink-black shadow-glow"
+                : "border-frost-gray bg-paper-white/5 text-stone-gray hover:bg-paper-white/10",
             )}
           >
             {n}
