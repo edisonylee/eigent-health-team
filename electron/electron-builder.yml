@@ -1,0 +1,21 @@
+appId: ai.healthos.desktop
+productName: HealthOS
+directories:
+  output: release
+files:
+  - "dist/**/*"
+  - "package.json"
+extraResources:
+  # The Python backend is started via `uv run` from the repo root for v2;
+  # bundling Python + Chroma + sentence-transformers via PyInstaller is a v3
+  # concern. Listing the repo as an extra resource is a placeholder so future
+  # builds have somewhere to copy a frozen backend.
+  - from: "../backend"
+    to: "backend"
+  - from: "../src"
+    to: "src"
+mac:
+  target: dmg
+  category: public.app-category.healthcare-fitness
+win:
+  target: nsis

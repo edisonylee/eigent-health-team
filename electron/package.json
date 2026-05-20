@@ -1,0 +1,18 @@
+{
+  "name": "healthos-desktop",
+  "version": "0.1.0",
+  "description": "HealthOS Electron desktop shell",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "tsc && electron dist/main.js",
+    "dist": "tsc && electron-builder",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "typescript": "^5.6.3"
+  }
+}
