@@ -138,9 +138,10 @@ queries embedded with the same local sentence-transformers model.
 
 | Route | What it shows |
 |---|---|
-| `/` | Run a plan. Live worker graph, live timeline, mid-run question modal, follow-up input on the memo. |
+| `/` | Run a plan. Profile + lab upload, biomarker table (persisted across reloads), live worker graph, live timeline, mid-run question modal, follow-up input on the memo. |
 | `/agents` | Specialist roster — name, role, system prompt, tools (with live/disabled pill per MCP server). |
 | `/check-in` | Daily energy/sleep/mood log. "Weekly synthesis" feeds the last 7 days into a follow-up. |
+| `/memory-graph` | Force-directed view of the personal entity graph (people, providers, foods, supplements) extracted from runs, check-ins, profile notes, and labs. |
 | `/evals` | Per-criterion mean + table from `evals/results.csv` + per-run cost from SQLite. |
 | `/settings` | Model backend (OpenAI/Ollama), MCP servers (status + reconnect), Profile, Data (export/wipe). |
 | `/runs/:taskId/timeline` | Full chronological view of any past run. |

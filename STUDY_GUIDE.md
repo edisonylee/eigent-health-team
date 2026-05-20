@@ -6,8 +6,11 @@ choice in the room. Read end-to-end once, then re-skim by section.
 > **One-line pitch (memorize):** *A multi-agent CAMEL Workforce that turns a
 > personal profile and optional lab work into a personalized health plan,
 > with agentic RAG over a curated knowledge base, a knowledge graph of
-> nutrient relationships, live cost telemetry, a human-in-the-loop approval
-> gate, and cost-efficient follow-up refinement.*
+> nutrient relationships, mid-run agent-initiated human-in-the-loop, live
+> cost telemetry with prompt-cache hit-rate, a force-directed memory graph
+> over the user's accumulated history, an events calendar + trend charts
+> as the retroactive operator substrate, and cost-efficient follow-up
+> refinement — packaged in an Electron desktop shell.*
 
 ---
 
@@ -19,10 +22,13 @@ choice in the room. Read end-to-end once, then re-skim by section.
 4. [CAMEL primitives used](#4-camel-primitives-used)
 5. [Retrieval: vector + graph + web (agentic RAG)](#5-retrieval-vector--graph--web-agentic-rag)
 6. [Lab Parser — typed document ingestion](#6-lab-parser--typed-document-ingestion)
-7. [Human-in-the-loop approval gate](#7-human-in-the-loop-approval-gate)
+7. [Human-in-the-loop (mid-run, agent-initiated)](#7-human-in-the-loop-mid-run-agent-initiated)
 8. [Follow-up refinement (the 2-stage micro-run)](#8-follow-up-refinement-the-2-stage-micro-run)
 9. [Chain-of-thought transparency](#9-chain-of-thought-transparency)
 10. [Live cost telemetry](#10-live-cost-telemetry)
+    - 10a. [Prompt-cache telemetry & 50% discount](#10a-prompt-cache-telemetry--50-discount)
+    - 10b. [Memory Graph — personal entity extraction + force-directed viz](#10b-memory-graph--personal-entity-extraction--force-directed-viz)
+    - 10c. [Events Calendar + Trend Charts (retroactive operator substrate)](#10c-events-calendar--trend-charts-retroactive-operator-substrate)
 11. [Product engineering stack](#11-product-engineering-stack)
 12. [Evals](#12-evals)
 13. [Files map (where everything lives)](#13-files-map-where-everything-lives)
@@ -570,11 +576,224 @@ GPT-4o pricing constants in the same file).
 
 - *"Cost telemetry is a product feature — it builds trust and lets the
   user catch runaway agent behavior. Eigent's roadmap literally lists
-  cost tracking and prompt caching as priorities."*
-- *"Prompt caching would be the obvious next optimization — the long
-  static system prompts are exactly what `cache_control` breakpoints are
-  for, and OpenAI's `prompt_cache_hit_tokens` would flow into the same
-  usage hook. ~80–90% reduction on cached input."*
+  cost tracking and prompt caching as priorities — both are in."*
+
+---
+
+## 10a. Prompt-cache telemetry & 50% discount
+
+OpenAI auto-caches input prefixes ≥1024 tokens at half price. Every
+Workforce system prompt is 1500–2200 tokens, so almost every tool-call
+iteration within a run, and almost every repeated worker call across
+back-to-back runs, qualifies. The fixed talking point: ***"cache hit
+rate is surfaced per worker, and the cost ticker reflects the discount
+in real time."***
+
+### Why the obvious patch didn't work
+
+CAMEL exposes `on_request_usage(payload)` whose `payload["request_usage"]`
+already contains `prompt_tokens` and `completion_tokens` — but **not**
+`cached_tokens`. Patching only `_build_request_usage_payload` (the
+function that *builds* that dict) returned 0 every time. The reason
+sits one layer deeper: `_update_token_usage_tracker` accumulates a
+typed dict of just `prompt_tokens`, `completion_tokens`, `total_tokens`
+— `prompt_tokens_details` is stripped at that accumulator before the
+payload builder is ever called.
+
+### The fix (3 monkey-patches at import time)
+
+In `backend/runner.py`, right after `from camel.agents import ChatAgent`:
+
+```python
+_orig_create_tracker = ChatAgent._create_token_usage_tracker
+_orig_update_tracker = ChatAgent._update_token_usage_tracker
+_orig_build_usage_payload = ChatAgent._build_request_usage_payload
+
+def _patched_create_tracker(self):
+    tracker = _orig_create_tracker(self)
+    tracker["cached_tokens"] = 0
+    return tracker
+
+def _patched_update_tracker(self, tracker, usage_dict):
+    _orig_update_tracker(self, tracker, usage_dict)
+    details = (usage_dict or {}).get("prompt_tokens_details") or {}
+    cached = int(details.get("cached_tokens") or 0)
+    tracker["cached_tokens"] = tracker.get("cached_tokens", 0) + cached
+
+def _patched_build_usage_payload(self, usage_dict, step_usage, request_index, response_id):
+    payload = _orig_build_usage_payload(self, usage_dict, step_usage, request_index, response_id)
+    payload["request_usage"]["cached_tokens"] = int((usage_dict or {}).get("cached_tokens") or 0)
+    return payload
+
+ChatAgent._create_token_usage_tracker = _patched_create_tracker
+ChatAgent._update_token_usage_tracker = _patched_update_tracker
+ChatAgent._build_request_usage_payload = _patched_build_usage_payload
+```
+
+Three patches, applied additively so existing CAMEL consumers see no
+change. Reads `usage_dict["prompt_tokens_details"]["cached_tokens"]`
+which comes from `safe_model_dump(chunk.usage)` of the OpenAI
+streaming usage chunk (which itself is the standard
+`CompletionUsage.prompt_tokens_details.cached_tokens` field).
+
+### Cost-side change
+
+`backend/runner.py::_usage_callback` and `_total_cost` now split prompt
+tokens into fresh + cached and bill cached at 50% of the input rate:
+
+```python
+fresh_in = prompt_tokens - cached_tokens
+cost = (fresh_in * input_rate
+        + cached_tokens * input_rate * 0.5
+        + completion_tokens * output_rate) / 1_000_000
+```
+
+`worker_usage` SSE events carry the new `cached_tokens` field. The
+frontend store has `cachedTokens` per worker; `WorkerNode.tsx` shows a
+green `N% cached` badge when the value is > 0.
+
+### Verification
+
+`scripts/test_workforce_cache.py` POSTs two identical runs back-to-back
+and prints per-worker cached / prompt / cost. Run 1 hits ~63% within
+the same run (the Researcher's tool-call iterations reuse the same
+prefix). Run 2 hits ~33% across runs against gpt-4o. The cache-fail
+isolation test `scripts/test_openai_cache.py` calls OpenAI directly
+to prove the cache works at the API layer (cached_tokens=1024 on the
+second call); `scripts/test_camel_cache.py` proves the same through
+CAMEL's `ChatAgent.step()` after the patch.
+
+### Talking point
+
+> *"The way OpenAI's prompt cache shows up in the Python SDK is
+> `usage.prompt_tokens_details.cached_tokens` — but CAMEL's per-step
+> token accumulator strips everything except `prompt_tokens`,
+> `completion_tokens`, `total_tokens`. So intercepting just the
+> `on_request_usage` payload returns zero. I patched three functions —
+> the tracker constructor, the tracker updater, the payload builder —
+> additively at import time. Cost calc splits prompt tokens fresh-vs-
+> cached and bills cached at 50%. The UI shows a per-worker `% cached`
+> badge whenever the value is non-zero."*
+
+---
+
+## 10b. Memory Graph — personal entity extraction + force-directed viz
+
+A new viz at `/memory-graph` that turns the user's accumulated history
+(plan memos, check-in notes, profile text, lab biomarkers) into a
+force-directed graph where canonical entities from the curated health
+graph appear next to personal entities — *"Magnesium"* next to *"the
+gym"* next to *"Dr. Patel"*. Co-mentions become edges.
+
+### Why this matters for the interview
+
+This is the *OpenHuman Memory Tree* idea adapted to the data the system
+already has — a "visible memory" the user owns. It's the substrate that
+turns one-shot health planning into long-term operator behavior: the
+agents will eventually recall from this graph at plan time.
+
+### Two-phase extractor (`backend/personal_entities.py`)
+
+1. **Rule-based pass** against canonical graph aliases (high precision).
+   If text mentions *"Vitamin D"* or *"magnesium glycinate"*, link to
+   the existing `vitamin_d` / `magnesium` graph node.
+2. **LLM pass** for open-set types (provider, person, place, activity)
+   with a typed Pydantic `PersonalEntityList` via `response_format`.
+
+Each extracted entity gets a row in `personal_entity`; each occurrence
+goes to `entity_mention` with source kind, source id, and a ~200-char
+context snippet. Both tables are additive `CREATE TABLE IF NOT EXISTS`
+in `scripts/init_db.py` — idempotent.
+
+### Hook into the runner
+
+When `_run` reaches `task_complete`, `index_existing_data()` (or the
+per-memo variant) scans the new memo, extracts entities, writes
+mentions. One-line patch into the existing `_finished_runs` write path.
+
+### API (`backend/routers/memory_graph.py`)
+
+- `GET /api/memory-graph` → `{nodes, links}` for the viz.
+- `GET /api/memory-graph/entities/{id}/mentions` → mentions chronologically.
+- `POST /api/memory-graph/reindex` → re-run the indexer.
+
+### Frontend (`frontend/src/routes/MemoryGraph.tsx`)
+
+`react-force-graph-2d`, filter chips by entity type, side panel that
+fetches mentions when a node is clicked.
+
+### Talking point
+
+> *"The Memory Graph is the OpenHuman Memory Tree pattern adapted to
+> the data we already have. It's plaintext-owned in SQLite — the user
+> can see exactly what the system knows about them, and the canonical
+> health entities sit alongside personal entities like 'Dr. Smith' or
+> 'the gym I joined in May.' This is the substrate that turns one-shot
+> planning into long-term operator behavior — recall tools come next."*
+
+---
+
+## 10c. Events Calendar + Trend Charts (retroactive operator substrate)
+
+> **Status (2026-05-20):** `CalendarStrip` and `TrendChart` were
+> demoted off the home screen so the React Flow `TaskGraph` is the
+> visual hero. The components still exist in `frontend/src/components/`
+> and the `event` table + `/api/events` endpoints are unchanged — they
+> just have no UI mount right now. Treat this section as design
+> intent for a future dedicated route (e.g. `/calendar`), not as a
+> live home-screen feature.
+
+The system was previously **planning-focused but execution-blind** —
+after a plan was approved it went silent until the user next initiated.
+Events + Calendar + Trend Charts is the first slice of the long-term
+operator layer: a continuous record of what happened *between* plans
+and labs.
+
+### Schema
+
+`event` rows: `id`, `ts`, `type` (sleep_disturbance | back_pain |
+supplement | meal | exercise | mood | other), `severity` (1–5), `note`,
+`linked_entity_ids` (JSON array of `personal_entity` ids), `source`
+(manual | apple_health | voice).
+
+### API (`backend/routers/events.py`)
+
+- `GET /api/events?since=&until=&type=` → events in range.
+- `POST /api/events` → create one (manual entry from the UI).
+- `GET /api/events/timeline_summary?days=30` → counts by type, trending
+  tags, notable streaks. The recall tool reads this.
+
+### Calendar UI (`frontend/src/components/CalendarStrip.tsx`)
+
+Compact 7×4 grid above the React Flow graph. Each cell shows colored
+dots per category. Click → modal listing the day's events + a quick
+"Add event" form (date, type, severity, note). Designed to be the
+**always-visible** memory surface, not buried behind a tab.
+
+### Trend Charts (`frontend/src/components/TrendChart.tsx`)
+
+Renders sparklines for repeat-measurement biomarkers across all lab
+uploads on the profile (e.g., Vitamin D over four blood draws,
+Ferritin trend, LDL trend). Built directly from the existing `biomarker`
+table — no new schema. Surfaces the **temporal dimension** that the
+single-snapshot plan flow can't.
+
+### Why this is the operator pivot
+
+The user pushed back on me when I prioritized doctor-visit-prep — it's a
+one-shot ceremonial artifact, not operator-shaped. The right deepest
+gap is that *the system never initiates after plan approval*. Events +
+calendar + trends puts the **substrate** in place; the next shape is
+plan-derived nudges + adherence tracking that read from this substrate.
+
+### Talking point
+
+> *"Plans and labs are snapshots; events are the continuous record
+> between them. With a logged-events table and a calendar strip the user
+> sees every day, the system gains temporal reasoning — 'three sleep-
+> disturbance events this month,' 'magnesium started 8 days ago, sleep
+> trending up.' This is the substrate; plan-derived nudges and adherence
+> tracking sit on top."*
 
 ---
 
@@ -610,6 +829,29 @@ every piece.
   memo (no typography plugin to keep deps lean).
 - **react-markdown** — renders the final memo + sections inside the
   approval modal.
+- **react-force-graph-2d** — Memory Graph viz (§10b). Single tiny dep,
+  Canvas2D-based force layout, plays cleanly with React.
+- **@tanstack/react-query** — server-state caching for the Memory Graph
+  + Events + Trend Charts API hooks (`frontend/src/lib/queries.ts`).
+- **react-router-dom** — multi-route shell (`/`, `/memory-graph`,
+  `/timeline`, `/agents`, `/evals`, `/settings`, `/check-in`).
+- **Celestial Command Center dark design system** — Tailwind theme +
+  custom `Badge`, `Button`, `Card`, `Dialog`, `Input`, `Tabs` primitives
+  in `frontend/src/components/ui/`. Single source of truth for color +
+  shadow + glow tokens. The talking point: *"the components are shadcn-
+  shaped but local — Tailwind + Radix-less primitives — so the bundle
+  stays light."*
+
+### Desktop shell
+
+- **Electron** (`electron/`) — wraps the Vite build + spawns the
+  FastAPI backend. Falls back to `uv run uvicorn` against live source
+  when the bundled binary is stale or missing, so the desktop app keeps
+  working through backend iteration without a rebuild.
+- **PyInstaller** (`electron/healthos-backend.spec`) — bundles the
+  FastAPI app + its deps (CAMEL, chromadb, sentence-transformers, etc.)
+  as `electron/dist/healthos-backend`. The shell prefers the bundle in
+  prod and falls back to live source in dev.
 
 ### Deployment
 
@@ -620,6 +862,10 @@ every piece.
   `OPENAI_API_KEY` + `APP_PASSWORD`. (Note: the deployed image
   predates RAG/labs/HITL — those run locally via Docker Compose for
   the Qdrant dependency.)
+- **Password gate is env-gated.** `APP_PASSWORD` only enforces when
+  set; the desktop shell ships without it for single-user posture. The
+  same handler still rejects bad passwords if the env var is present —
+  defaults differ but the gate code is the same.
 
 ### Why this is "Eigent-shaped"
 
@@ -694,32 +940,59 @@ eigent-health-team/
 │   └── main.py                 # CLI entry: profile → memo
 │
 ├── backend/                    # FastAPI app
-│   ├── events.py               # Typed RunEvent
+│   ├── events.py               # Typed RunEvent (now includes cached_tokens)
 │   ├── runner.py               # Async runner: Workforce + tool wraps + HITL + follow-ups
-│   └── server.py               # Routes: /api/run, /api/labs, /api/run/{id}/human_input,
-│                               #         /api/run/{id}/follow_up, /api/prompts, /api/health
+│   │                           # + 3 ChatAgent monkey-patches for cached_tokens telemetry
+│   ├── server.py               # Routes: /api/run, /api/labs, /api/run/{id}/answer,
+│   │                           #         /api/run/{id}/follow_up, /api/prompts, /api/health
+│   ├── db.py                   # SQLite (stdlib): run, biomarker, personal_entity,
+│   │                           # entity_mention, event, check_in, profile, setting
+│   ├── personal_entities.py    # Two-phase entity extractor (rule + LLM)
+│   ├── mcp_manager.py          # MCP subprocess pool (health_kb, filesystem, brave_search)
+│   └── routers/
+│       ├── memory_graph.py     # /api/memory-graph endpoints
+│       └── events.py           # /api/events + timeline_summary
 │
 ├── frontend/                   # React + TS + Vite
 │   └── src/
-│       ├── store.ts            # Zustand store + applyEvent reducer
-│       ├── App.tsx             # Top-level: lab upload, run + follow-up handlers
-│       ├── lib/sse.ts          # EventSource wrapper
+│       ├── store.ts            # Zustand store + applyEvent reducer (now: cachedTokens)
+│       ├── App.tsx             # Top-level shell + run + follow-up handlers
+│       ├── lib/
+│       │   ├── sse.ts          # EventSource wrapper
+│       │   ├── api.ts          # Typed fetch helpers
+│       │   ├── queries.ts      # React Query hooks (memory graph, events, trend)
+│       │   └── cn.ts           # className combiner
+│       ├── routes/             # React Router pages
+│       │   ├── MemoryGraph.tsx # Force-graph viz + side panel
+│       │   ├── Timeline.tsx    # Per-run timeline view
+│       │   ├── Agents.tsx, Evals.tsx, Settings.tsx, CheckIn.tsx
 │       └── components/
-│           ├── Gate.tsx        # Password gate
-│           ├── BiomarkerTable.tsx
-│           ├── ParserNode.tsx          # Lab Parser node (React Flow)
-│           ├── WorkerNode.tsx          # 4 worker nodes (status, tokens, cost, badges)
-│           ├── TaskGraph.tsx           # React Flow canvas wiring
-│           ├── WorkerDrawer.tsx        # Click-to-expand: prompt, reasoning, tool calls, output
-│           ├── MemoPanel.tsx           # Markdown plan + follow-up input
-│           └── ApprovalModal.tsx       # HITL gate UI
+│           ├── Gate.tsx                # Password gate (env-gated)
+│           ├── BiomarkerTable.tsx, ParserNode.tsx
+│           ├── WorkerNode.tsx          # 4 worker nodes (status, tokens, cost, % cached)
+│           ├── TaskGraph.tsx, WorkerDrawer.tsx
+│           ├── MemoPanel.tsx, AgentQuestionModal.tsx  # mid-run HITL
+│           ├── CalendarStrip.tsx       # 7×4 day grid (§10c)
+│           ├── TrendChart.tsx          # Sparklines for repeat biomarkers
+│           └── ui/                     # Dark design system primitives
+│               ├── Badge.tsx, Button.tsx, Card.tsx
+│               ├── Dialog.tsx, Input.tsx, Tabs.tsx
+│
+├── electron/                   # Desktop shell
+│   ├── main.js                 # Electron entry; falls back to live uvicorn if no bundle
+│   ├── backend_entry.py        # PyInstaller entry point
+│   └── healthos-backend.spec   # PyInstaller spec
 │
 ├── data/
 │   ├── kb_sources.txt          # ~30 URLs for the Qdrant KB
 │   └── health_graph.yaml       # 65 entities, 124 edges
 │
 ├── scripts/
-│   └── ingest_kb.py            # Firecrawl → chunk → embed → Qdrant upsert
+│   ├── ingest_kb.py            # Firecrawl → chunk → embed → Qdrant upsert
+│   ├── init_db.py              # Idempotent CREATE TABLE IF NOT EXISTS
+│   ├── test_openai_cache.py    # OpenAI-direct prompt-cache probe
+│   ├── test_camel_cache.py     # CAMEL ChatAgent prompt-cache probe
+│   └── test_workforce_cache.py # End-to-end 2-run Workforce cache verifier
 │
 ├── evals/
 │   ├── deterministic.py        # SafetyReview structural assertion
@@ -853,6 +1126,14 @@ Pick one of these and tell it as a story:
 - **The streaming-usage gotcha.** Live cost stayed at $0 until I
   realized OpenAI's streaming responses omit usage by default —
   needed `stream_options.include_usage=true` in the model config.
+- **The prompt-cache telemetry trace.** Patched the obvious function
+  (`_build_request_usage_payload`) — got zero. Wrote an OpenAI-direct
+  isolation test that proved the cache works at the API layer. Wrote
+  a CAMEL-direct test that reproduced the zero. Then read CAMEL's
+  stream-chunk handler line by line and found
+  `_update_token_usage_tracker` is what strips `prompt_tokens_details`
+  before the payload builder ever runs. Three additive monkey-patches
+  later, `cached_tokens` flows through end-to-end.
 - **Workforce auto-decompose non-determinism.** The coordinator
   occasionally folded one of the four stages. I considered Pipeline
   mode but bounded the scope and accepted the dynamic behavior for
@@ -862,6 +1143,61 @@ Pick one of these and tell it as a story:
   because the new firecrawl-py uses `Firecrawl(api_key).scrape(url,
   formats=[...])`, not the older `FirecrawlApp.scrape_url(params=...)`.
   Quick fix, but a reminder to pin or guard against vendor API churn.
+- **PyInstaller bundle staleness.** Electron was loading a frozen
+  backend that predated v3. Renamed the stale binary so the shell
+  falls back to live `uv run uvicorn` — desktop app keeps working
+  through iteration without rebuild ceremony.
+
+### "Walk me through your prompt-cache work."
+
+> *"OpenAI auto-caches input prefixes ≥1024 tokens at 50% off. My
+> system prompts are 1500–2200 tokens — well over the threshold — so
+> almost every tool-call iteration within a run, and almost every
+> back-to-back run, qualifies. The CAMEL `on_request_usage` callback
+> already had `prompt_tokens` and `completion_tokens` but no
+> `cached_tokens`. I traced it: CAMEL's per-step token tracker is
+> typed for just three keys, so `prompt_tokens_details` from the
+> OpenAI usage dump is stripped at the accumulator layer before the
+> payload builder ever sees it. I patched three functions additively
+> — tracker constructor, tracker updater, payload builder — so
+> existing CAMEL consumers see no change but my callback receives
+> `cached_tokens`. The cost calc splits prompt tokens into fresh +
+> cached and bills cached at 50%. The UI shows a per-worker `% cached`
+> badge when non-zero. I verified end-to-end with a 2-run live
+> Workforce test — researcher hits 63% intra-run and 33% across runs."*
+
+### "Talk to me about the Memory Graph."
+
+> *"It's the OpenHuman Memory Tree pattern adapted to the data the
+> system already has — plan memos, check-in notes, profile text, lab
+> biomarkers. A two-phase extractor — rule-based against canonical
+> health-graph aliases for precision, LLM with a typed Pydantic
+> schema for open-set types like provider/person/place — writes rows
+> into `personal_entity` and `entity_mention` in SQLite. The viz at
+> `/memory-graph` uses `react-force-graph-2d` to render canonical
+> health entities next to personal ones; click a node and a side
+> panel lists every mention chronologically with source links. The
+> design idea is that **memory is plaintext that the user owns** —
+> SQLite tables they can inspect — and the graph viz is the
+> always-on surface that makes the system's memory legible. The
+> recall tool that lets agents query this at plan time is the next
+> shape; the substrate is built."*
+
+### "What's the Events Calendar for?"
+
+> *"The system was planning-focused but execution-blind — after a
+> plan was approved it went silent until the user next initiated.
+> Plans and labs are snapshots; the calendar is the continuous record
+> in between. Each `event` row has a type, severity, note, and
+> optional links to `personal_entity` ids — sleep disturbance, back
+> pain, supplement-taken, exercise, meals, mood. The CalendarStrip
+> component is a compact 7×4 grid above the React Flow graph;
+> clicking a day opens a modal with the day's events plus a quick-add
+> form. TrendChart renders sparklines for repeat-measurement
+> biomarkers across multiple lab uploads — Vitamin D over four blood
+> draws, ferritin trend. Together they put the substrate in place for
+> plan-derived nudges and adherence tracking — the system stops being
+> silent."*
 
 ---
 
@@ -869,22 +1205,38 @@ Pick one of these and tell it as a story:
 
 Have these ready — they show you know what's beyond the demo.
 
-- **Prompt caching** with Anthropic `cache_control` breakpoints or
-  OpenAI's prefix caching. Big static system prompts → ~80–90%
-  cheaper after the first call. Telemetry already in place; would
-  just add `cache_read_input_tokens` to the rollup.
-- **Local model option (Ollama).** Swap `ModelPlatformType.OPENAI`
-  for an OpenAI-compatible local URL. Slower but $0/run; the
-  Eigent local-first story end-to-end.
-- **Persistent memory** via CAMEL's `LongtermAgentMemory` + SQLite.
-  *"Last time you said you started walking 20 min/day — how's that
-  going?"* Multi-session product behavior.
-- **MCP integration.** Expose `search_health_kb` and
-  `query_health_graph` as MCP servers; let any MCP-compatible client
-  (including Eigent) consume them.
+**Already shipped (was on this list, now built):**
+
+- ~~Prompt caching telemetry~~ — shipped. Per-worker cache hit-rate
+  badge + 50% discount applied in cost calc. See §10a.
+- ~~Local model option (Ollama)~~ — shipped via `ModelFactory` +
+  OpenAI/Ollama toggle in `src/model_config.py`. Settings page hot-
+  swaps at runtime.
+- ~~MCP integration~~ — shipped. `health_kb`, `filesystem`, and
+  `brave_search` MCP servers, with the manager spawning the subprocess
+  pool from `backend/mcp_manager.py`.
+- ~~Persistent memory~~ — shipped as the Memory Graph (§10b) over
+  SQLite, with the substrate for cross-session entity recall in place.
+
+**Still on the list:**
+
+- **Plan-derived nudges + adherence tracking.** When a plan is
+  written, schedule follow-up check-ins for each numeric commitment
+  (*"Day 14 of magnesium — how's sleep?"*). The agents stop being
+  silent after approval. Reads from the events table; writes
+  check-ins. ~4 h.
+- **Apple Health import.** Months of context for free — sleep, heart-
+  rate, exercise. ~6 h.
+- **Voice event logging.** Whisper → typed `event` row. Delight more
+  than substance, but pairs well with the calendar. ~3 h.
+- **Cross-time conversational queries.** A chat box that asks the
+  vault things — *"how has my sleep been this month?"* — using the
+  recall tools over events + memory graph. ~6 h.
+- **BrowserToolkit as 4th Researcher tool.** Add CAMEL's Playwright-
+  based browser tool to the Researcher; prompt steers selection.
+  Mirrors Eigent's Browser Agent. ~2–3 h.
 - **Graph RAG with a mini React Flow viz in the drawer.** The
-  retrieved subgraph rendered as nodes + edges — bigger demo-wow but
-  ~2h of pure UI work.
+  retrieved subgraph rendered as nodes + edges. ~2 h.
 - **Auto-graph build from KB chunks.** A graph-building agent that
   reads the vector chunks and writes the YAML. Scales the graph
   beyond what I'd hand-curate.
@@ -909,13 +1261,26 @@ When pressed, own these:
    would have orders of magnitude more, with periodic re-ingestion.
 5. **Graph is hand-curated (~65 entities).** Won't scale to the long
    tail without an extraction pipeline.
-6. **Single-user.** No accounts, no tenancy. APP_PASSWORD is the
-   only gate. Enterprise multi-tenancy is a known follow-on.
-7. **No prompt caching yet.** Easy win, deferred for time.
-8. **Free-tier Render cold starts.** ~50s + heavy camel-ai imports.
-   Demo runs locally; deployment is for show-and-tell.
-9. **DDG free endpoint is sparse.** Tavily or Exa would harden the
-   web search; not worth the API integration time for the demo.
+6. **Single-user.** No accounts, no tenancy. The desktop posture is
+   single-user by default; the password gate is env-gated so it
+   only enforces when set. Enterprise multi-tenancy is a known
+   follow-on.
+7. **Personal entity extraction is best-effort.** The LLM pass for
+   open-set types (provider, person, place) can miss aliases or
+   over-cluster; canonical aliasing in the rule-based pass is
+   precise but recall depends on the curated graph.
+8. **Memory Graph is a read viz, not yet a recall tool.** The
+   substrate is in place; the next shape is exposing
+   `recall_my_history` and `recall_events` as agent tools so the
+   plan flow draws from the graph at run time.
+9. **Events table has no recurrence.** Point events for v1; recurring
+   events ("magnesium 400mg every night") are deferred.
+10. **Free-tier Render cold starts.** ~50s + heavy camel-ai imports.
+    Demo runs locally via the Electron shell; deployment is for
+    show-and-tell.
+11. **DDG/Brave free endpoint is sparse.** Tavily or Exa would
+    harden the web search; not worth the API integration time for
+    the demo.
 
 ---
 
@@ -924,9 +1289,16 @@ When pressed, own these:
 - Memo the elevator pitch and the 4-min demo script.
 - Run the demo end-to-end yourself once. Time it.
 - Read **§3 (Agents)** and **§4 (CAMEL primitives)** out loud.
+- Read **§10a (Prompt cache)** out loud — the trace from "patch the
+  obvious function" → "found the deeper layer" is a textbook
+  hardest-part story.
+- Visit `/memory-graph` once and zoom into a personal entity so you
+  remember exactly what the side-panel-of-mentions looks like.
+- Open the Calendar Strip and log one event so the click-modal flow
+  is in your hands.
 - Practice answering "walk me through what happens when a user
   clicks Run" without notes.
-- Know the **5 honest limitations** in §16 — they're conversation
+- Know the **honest limitations** in §16 — they're conversation
   starters, not weaknesses.
 
 Educational information only. Built on
