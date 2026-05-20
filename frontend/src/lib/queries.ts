@@ -3,6 +3,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./api";
 
+export const useAuthStatus = () =>
+  useQuery({
+    queryKey: ["auth", "status"],
+    queryFn: api.authStatus,
+    staleTime: Infinity,
+  });
+
 export const useModelStatus = () =>
   useQuery({ queryKey: ["model", "status"], queryFn: api.modelStatus });
 

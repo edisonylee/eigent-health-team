@@ -50,7 +50,19 @@ from .runner import (
 # Local dev reads .env; in production (Render) the vars are set directly.
 load_dotenv()
 
-APP_PASSWORD = os.environ.get("APP_PASSWORD", "dev")
+APP_PASSWORD = os.environ.get("APP_PASSWORD", "")
+
+
+def _password_ok(provided: Optional[str]) -> bool:
+    """When APP_PASSWORD is unset, auth is disabled — the desktop default.
+
+    The vestige of the hosted-Render era where a shared OpenAI key needed
+    a gate. Local-first builds don't need it; hosted deploys set the env
+    var to re-enable.
+    """
+    if not APP_PASSWORD:
+        return True
+    return provided == APP_PASSWORD
 
 
 # Setting keys persisted in the `setting` table.
@@ -132,7 +144,7 @@ class ModelSettingsRequest(BaseModel):
 
 @app.post("/api/run")
 async def run(req: RunRequest) -> dict:
-    if req.password != APP_PASSWORD:
+    if not _password_ok(req.password):
         raise HTTPException(status_code=401, detail="Wrong password.")
     if not req.idea.strip():
         raise HTTPException(status_code=400, detail="Idea is empty.")
@@ -151,7 +163,7 @@ async def answer(task_id: str, req: AnswerRequest) -> dict:
     request_ids are globally unique. Kept in the path for symmetry with the
     other run endpoints and to leave room for per-task auth in the future.
     """
-    if req.password != APP_PASSWORD:
+    if not _password_ok(req.password):
         raise HTTPException(status_code=401, detail="Wrong password.")
     if not resolve_question(req.request_id, req.answer):
         raise HTTPException(
@@ -165,7 +177,7 @@ async def answer(task_id: str, req: AnswerRequest) -> dict:
 async def follow_up(task_id: str, req: FollowUpRequest) -> dict:
     """Refine an approved plan with additional context, without re-running
     the full Workforce. Runs Safety Reviewer + Plan Writer only."""
-    if req.password != APP_PASSWORD:
+    if not _password_ok(req.password):
         raise HTTPException(status_code=401, detail="Wrong password.")
     if not req.note.strip():
         raise HTTPException(status_code=400, detail="Note is empty.")
@@ -187,7 +199,7 @@ async def labs(
     file: Optional[UploadFile] = File(None),
 ) -> dict:
     """Parse a lab report (PDF upload or pasted text) into a BiomarkerPanel."""
-    if password != APP_PASSWORD:
+    if not _password_ok(password):
         raise HTTPException(status_code=401, detail="Wrong password.")
 
     extracted = (text or "").strip()
@@ -223,6 +235,17 @@ def health() -> dict:
     return {"ok": True}
 
 
+@app.get("/api/auth/status")
+def auth_status() -> dict:
+    """Whether the frontend needs to render the password Gate.
+
+    Default is `required=false` — desktop / local builds skip auth entirely.
+    Set `APP_PASSWORD=...` in the env to re-enable the gate for hosted
+    deployments.
+    """
+    return {"required": bool(APP_PASSWORD)}
+
+
 @app.get("/api/model/status")
 def model_status() -> dict:
     """Active backend + probed availability. Drives the onboarding modal + settings UI."""
@@ -232,7 +255,7 @@ def model_status() -> dict:
 @app.post("/api/model/settings")
 async def model_settings(req: ModelSettingsRequest) -> dict:
     """Hot-swap the active model config + persist to SQLite."""
-    if req.password != APP_PASSWORD:
+    if not _password_ok(req.password):
         raise HTTPException(status_code=401, detail="Wrong password.")
     try:
         backend = ModelBackend(req.backend)
@@ -299,7 +322,7 @@ async def profile_get() -> dict:
 
 @app.post("/api/profile")
 async def profile_post(req: ProfileRequest) -> dict:
-    if req.password != APP_PASSWORD:
+    if not _password_ok(req.password):
         raise HTTPException(status_code=401, detail="Wrong password.")
     data = req.model_dump(exclude={"password"}, exclude_none=True)
     return await db.upsert_profile(data)
@@ -331,7 +354,7 @@ def mcp_servers() -> dict:
 
 @app.post("/api/mcp/servers/{name}/reconnect")
 async def mcp_reconnect(name: str, req: MCPReconnectRequest) -> dict:
-    if req.password != APP_PASSWORD:
+    if not _password_ok(req.password):
         raise HTTPException(status_code=401, detail="Wrong password.")
     mgr = get_mcp_manager()
     try:
@@ -389,7 +412,7 @@ def data_export(password: str) -> FileResponse:
     """Download the SQLite DB. Vector dir + notes are excluded — they're
     derivable (re-ingestable) and large.
     """
-    if password != APP_PASSWORD:
+    if not _password_ok(password):
         raise HTTPException(status_code=401, detail="Wrong password.")
     path = db.db_path()
     if not path.exists():
@@ -406,7 +429,7 @@ def data_wipe(req: WipeRequest) -> dict:
     """Delete all local data. Requires confirm='WIPE'. Restart server to
     reinitialize the schema (the lifespan also does this on next boot).
     """
-    if req.password != APP_PASSWORD:
+    if not _password_ok(req.password):
         raise HTTPException(status_code=401, detail="Wrong password.")
     if req.confirm != "WIPE":
         raise HTTPException(
@@ -438,7 +461,7 @@ async def check_ins_get(limit: int = 30) -> dict:
 
 @app.post("/api/check_ins")
 async def check_ins_post(req: CheckInRequest) -> dict:
-    if req.password != APP_PASSWORD:
+    if not _password_ok(req.password):
         raise HTTPException(status_code=401, detail="Wrong password.")
     data = req.model_dump(exclude={"password"}, exclude_none=True)
     return await db.add_check_in(data)

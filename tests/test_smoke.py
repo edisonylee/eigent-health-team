@@ -93,6 +93,7 @@ def test_fastapi_app_imports_clean(monkeypatch, tmp_path):
     # Every endpoint registered. Sanity-check the new v2 ones.
     routes = {getattr(r, "path", "") for r in app.routes}
     for required in (
+        "/api/auth/status",
         "/api/model/status",
         "/api/model/settings",
         "/api/mcp/servers",

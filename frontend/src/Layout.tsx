@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import CommandPalette from "./components/CommandPalette";
 import Gate from "./components/Gate";
 import OnboardingModal from "./components/OnboardingModal";
-import { useModelStatus } from "./lib/queries";
+import { useAuthStatus, useModelStatus } from "./lib/queries";
 import { useStore } from "./store";
 
 const nav = [
@@ -17,6 +17,8 @@ const nav = [
 
 export default function Layout() {
   const authed = useStore((s) => s.authed);
+  const setAuthed = useStore((s) => s.setAuthed);
+  const { data: auth } = useAuthStatus();
   const { data: status } = useModelStatus();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const navigate = useNavigate();
@@ -32,7 +34,13 @@ export default function Layout() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  if (!authed) return <Gate />;
+  // Auto-authenticate when the backend reports no password is required —
+  // this is the default for local/desktop builds.
+  useEffect(() => {
+    if (auth && !auth.required && !authed) setAuthed(true);
+  }, [auth, authed, setAuthed]);
+
+  if (auth?.required && !authed) return <Gate />;
 
   const onboardingNeeded =
     status !== undefined && status.has_usable_backend === false;

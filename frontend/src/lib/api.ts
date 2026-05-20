@@ -134,6 +134,7 @@ async function jsonFetch<T>(input: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  authStatus: () => jsonFetch<{ required: boolean }>("/api/auth/status"),
   modelStatus: () => jsonFetch<ModelStatus>("/api/model/status"),
   setModelSettings: (body: {
     password: string;
