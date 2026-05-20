@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Card } from "../components/ui/Card";
 
 interface EvalRow {
   ts: string;
@@ -28,22 +29,26 @@ export default function Evals() {
   return (
     <div className="px-6 py-8">
       <div className="mx-auto max-w-5xl">
-        <h1 className="mb-2 font-serif text-2xl text-stone-900">
+        <h1 className="mb-2 text-heading font-semibold text-frost">
           Evals dashboard
         </h1>
-        <p className="mb-5 text-sm text-stone-500">
+        <p className="mb-6 text-body text-slate-gray">
           LLM-as-judge scores from{" "}
-          <code className="rounded bg-stone-100 px-1">evals/results.csv</code>.
-          Run{" "}
-          <code className="rounded bg-stone-100 px-1">uv run python -m evals.llm_judge</code>{" "}
+          <code className="rounded bg-frost/10 px-1 text-frost">
+            evals/results.csv
+          </code>
+          . Run{" "}
+          <code className="rounded bg-frost/10 px-1 text-frost">
+            uv run python -m evals.llm_judge
+          </code>{" "}
           to append fresh scores.
         </p>
 
         {isLoading && (
-          <div className="text-sm text-stone-500">loading…</div>
+          <div className="text-body text-slate-gray">loading…</div>
         )}
         {error && (
-          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          <div className="rounded-default border border-crimson-red/30 bg-crimson-red/10 px-3 py-2 text-[12px] text-crimson-red">
             {String(error)}
           </div>
         )}
@@ -52,48 +57,50 @@ export default function Evals() {
           <>
             <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">
               {Object.entries(data.means).map(([criterion, mean]) => (
-                <div
-                  key={criterion}
-                  className="rounded-md border border-stone-200 bg-white p-3"
-                >
-                  <div className="text-[10px] uppercase tracking-wider text-stone-400">
+                <Card key={criterion} surface="starless" shape="default">
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-pewter">
                     {criterion}
                   </div>
-                  <div className="font-serif text-2xl text-stone-900">
+                  <div className="mt-1 text-heading font-semibold text-frost">
                     {mean.toFixed(2)}
                   </div>
-                  <div className="text-[11px] text-stone-500">mean / 5</div>
-                </div>
+                  <div className="text-[11px] text-slate-gray">mean / 5</div>
+                </Card>
               ))}
             </div>
 
-            <div className="overflow-hidden rounded-lg border border-stone-200 bg-white">
-              <table className="w-full text-sm">
-                <thead className="bg-stone-50 text-[10px] uppercase tracking-wider text-stone-500">
+            {/* Per the design system's "rhythmic contrast" rule: the evals
+                table is a Frost (white) card inside the dark canvas — dense
+                tabular reading content. */}
+            <div className="overflow-hidden rounded-card bg-frost shadow-card">
+              <table className="w-full text-body">
+                <thead className="bg-stone-100 text-[10px] uppercase tracking-[0.2em] text-stone-500">
                   <tr>
-                    <th className="px-3 py-2 text-left">When</th>
-                    <th className="px-3 py-2 text-left">Profile</th>
-                    <th className="px-3 py-2 text-right">Coh.</th>
-                    <th className="px-3 py-2 text-right">Act.</th>
-                    <th className="px-3 py-2 text-right">Saf.</th>
-                    <th className="px-3 py-2 text-right">Pers.</th>
-                    <th className="px-3 py-2 text-left">Summary</th>
+                    <th className="px-4 py-2.5 text-left">When</th>
+                    <th className="px-4 py-2.5 text-left">Profile</th>
+                    <th className="px-4 py-2.5 text-right">Coh.</th>
+                    <th className="px-4 py-2.5 text-right">Act.</th>
+                    <th className="px-4 py-2.5 text-right">Saf.</th>
+                    <th className="px-4 py-2.5 text-right">Pers.</th>
+                    <th className="px-4 py-2.5 text-left">Summary</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="text-stone-800">
                   {data.rows.map((r, i) => (
-                    <tr key={i} className="border-t border-stone-100">
-                      <td className="px-3 py-2 font-mono text-[11px] text-stone-500">
+                    <tr key={i} className="border-t border-stone-200">
+                      <td className="px-4 py-2.5 font-mono text-[11px] text-stone-500">
                         {r.ts}
                       </td>
-                      <td className="px-3 py-2 text-xs text-stone-700">
-                        {r.profile}
+                      <td className="px-4 py-2.5 text-[12px]">{r.profile}</td>
+                      <td className="px-4 py-2.5 text-right">{r.coherence}</td>
+                      <td className="px-4 py-2.5 text-right">
+                        {r.actionability}
                       </td>
-                      <td className="px-3 py-2 text-right">{r.coherence}</td>
-                      <td className="px-3 py-2 text-right">{r.actionability}</td>
-                      <td className="px-3 py-2 text-right">{r.safety}</td>
-                      <td className="px-3 py-2 text-right">{r.personalization}</td>
-                      <td className="px-3 py-2 text-xs text-stone-600">
+                      <td className="px-4 py-2.5 text-right">{r.safety}</td>
+                      <td className="px-4 py-2.5 text-right">
+                        {r.personalization}
+                      </td>
+                      <td className="px-4 py-2.5 text-[12px]">
                         {r.one_line_summary}
                       </td>
                     </tr>
@@ -101,7 +108,7 @@ export default function Evals() {
                 </tbody>
               </table>
               {data.rows.length === 0 && (
-                <div className="px-3 py-5 text-center text-xs text-stone-400">
+                <div className="px-4 py-6 text-center text-[12px] text-stone-400">
                   No eval rows yet.
                 </div>
               )}

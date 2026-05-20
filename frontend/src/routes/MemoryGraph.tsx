@@ -1,7 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import ForceGraph2D from "react-force-graph-2d";
 
 import type { MemoryGraphNode } from "../lib/api";
+import { Badge } from "../components/ui/Badge";
+import { Button } from "../components/ui/Button";
+import { Card } from "../components/ui/Card";
+import { cn } from "../lib/cn";
 import {
   useEntityMentions,
   useMemoryGraph,
@@ -9,27 +13,27 @@ import {
 } from "../lib/queries";
 import { useStore } from "../store";
 
-// Per-type styling — color drives both the node fill and the filter chip.
+// Per-type styling — colors drawn from the design system accents so the
+// graph integrates with the dark theme.
 const TYPE_STYLE: Record<string, { color: string; label: string }> = {
-  nutrient:    { color: "#8b5cf6", label: "Nutrient" },     // violet
-  condition:   { color: "#ef4444", label: "Condition" },    // red
-  provider:    { color: "#0ea5e9", label: "Provider" },     // sky
-  medication:  { color: "#f97316", label: "Medication" },   // orange
-  food:        { color: "#16a34a", label: "Food" },         // green
-  place:       { color: "#a3a3a3", label: "Place" },        // stone
-  person:      { color: "#ec4899", label: "Person" },       // pink
-  activity:    { color: "#0d9488", label: "Activity" },     // teal
-  biomarker:   { color: "#7c3aed", label: "Biomarker" },    // deep violet
-  exercise:    { color: "#22c55e", label: "Exercise" },     // light green
-  other:       { color: "#78716c", label: "Other" },        // warm gray
+  nutrient:   { color: "#B855E7", label: "Nutrient" },     // magenta burst
+  condition:  { color: "#FF5252", label: "Condition" },    // crimson red
+  provider:   { color: "#60A5FA", label: "Provider" },     // sky blue
+  medication: { color: "#FFB764", label: "Medication" },   // goldenrod
+  food:       { color: "#16C253", label: "Food" },         // vivid green
+  place:      { color: "#999999", label: "Place" },        // pewter
+  person:     { color: "#DD55E7", label: "Person" },       // fuchsia flare
+  activity:   { color: "#1CECBB", label: "Activity" },     // teal glow
+  biomarker:  { color: "#0088FF", label: "Biomarker" },    // electric blue
+  exercise:   { color: "#FFDD00", label: "Exercise" },     // sunshine yellow
+  other:      { color: "#70757C", label: "Other" },        // slate gray
 };
 
-const DEFAULT_STYLE = { color: "#78716c", label: "Other" };
+const DEFAULT_STYLE = { color: "#70757C", label: "Other" };
 
 function styleFor(type: string) {
   return TYPE_STYLE[type] || DEFAULT_STYLE;
 }
-
 
 export default function MemoryGraph() {
   const password = useStore((s) => s.password);
@@ -40,14 +44,11 @@ export default function MemoryGraph() {
   const fgRef = useRef<any>(null);
   const { data: detail } = useEntityMentions(selectedId);
 
-  // Filter nodes + links by active type filter.
   const filtered = useMemo(() => {
     if (!data) return { nodes: [], links: [] };
     if (typeFilter.size === 0) return data;
     const keep = new Set(
-      data.nodes
-        .filter((n) => typeFilter.has(n.type))
-        .map((n) => n.id),
+      data.nodes.filter((n) => typeFilter.has(n.type)).map((n) => n.id),
     );
     return {
       nodes: data.nodes.filter((n) => keep.has(n.id)),
@@ -79,8 +80,7 @@ export default function MemoryGraph() {
       return next;
     });
 
-  // Custom node renderer — color by type, size by mention_count, label always
-  // visible at higher zoom.
+  // Light text on a dark canvas — frost labels at higher zoom.
   const drawNode = useCallback(
     (n: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
       const radius = Math.max(4, 4 + Math.log2(1 + (n.mention_count || 1)) * 2);
@@ -89,15 +89,14 @@ export default function MemoryGraph() {
       ctx.arc(n.x, n.y, radius, 0, 2 * Math.PI);
       ctx.fillStyle = color;
       ctx.fill();
-      // Canonical-linked nodes get a darker ring.
       if (n.canonical_id) {
         ctx.lineWidth = 1.5;
-        ctx.strokeStyle = "#1c1917";
+        ctx.strokeStyle = "#FFFFFF";
         ctx.stroke();
       }
       if (globalScale >= 1.2) {
-        ctx.font = `${10 / globalScale}px ui-sans-serif`;
-        ctx.fillStyle = "#1c1917";
+        ctx.font = `${10 / globalScale}px Inter, ui-sans-serif`;
+        ctx.fillStyle = "#E5E7EB";
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
         ctx.fillText(n.name, n.x, n.y + radius + 2);
@@ -114,37 +113,41 @@ export default function MemoryGraph() {
       <div className="mx-auto max-w-6xl">
         <header className="mb-4 flex items-end justify-between">
           <div>
-            <h1 className="font-serif text-2xl text-stone-900">Memory Graph</h1>
-            <p className="text-sm text-stone-500">
+            <h1 className="text-heading font-semibold text-frost">
+              Memory Graph
+            </h1>
+            <p className="mt-1 text-body text-slate-gray">
               Entities the system has extracted from your plans, check-ins,
-              labs, and profile. Canonical entities (ringed) link back to
-              the curated health graph.
+              labs, and profile. Canonical entities (ringed) link back to the
+              curated health graph.
             </p>
           </div>
           <div className="flex gap-2">
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               type="button"
               onClick={() => reindexNow(false)}
               disabled={reindex.isPending}
-              className="rounded-md border border-stone-300 bg-white px-3 py-1.5 text-xs hover:bg-stone-50 disabled:opacity-40"
             >
               {reindex.isPending ? "Reindexing…" : "Reindex"}
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
               type="button"
               onClick={() => reindexNow(true)}
               disabled={reindex.isPending}
-              className="rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-xs text-red-700 hover:bg-red-100 disabled:opacity-40"
               title="Wipe both tables and re-extract from scratch"
             >
               Reset + reindex
-            </button>
+            </Button>
           </div>
         </header>
 
         {types.length > 0 && (
-          <div className="mb-3 flex flex-wrap items-center gap-1.5 text-[11px]">
-            <span className="text-stone-500">Filter:</span>
+          <div className="mb-4 flex flex-wrap items-center gap-1.5 text-[11px]">
+            <span className="text-slate-gray">Filter:</span>
             {types.map((t) => {
               const { color, label } = styleFor(t);
               const active = typeFilter.has(t);
@@ -153,11 +156,12 @@ export default function MemoryGraph() {
                   key={t}
                   type="button"
                   onClick={() => toggleType(t)}
-                  className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 transition-colors ${
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-pill border px-2.5 py-0.5 transition-colors",
                     active
-                      ? "border-stone-900 bg-stone-900 text-white"
-                      : "border-stone-300 bg-white text-stone-700 hover:bg-stone-100"
-                  }`}
+                      ? "border-frost bg-frost text-midnight-eclipse"
+                      : "border-twilight-ink bg-frost/5 text-ghostly-gray hover:bg-frost/10",
+                  )}
                 >
                   <span
                     aria-hidden
@@ -172,7 +176,7 @@ export default function MemoryGraph() {
               <button
                 type="button"
                 onClick={() => setTypeFilter(new Set())}
-                className="text-stone-500 underline-offset-2 hover:underline"
+                className="text-slate-gray underline-offset-2 hover:underline hover:text-frost"
               >
                 clear
               </button>
@@ -181,28 +185,28 @@ export default function MemoryGraph() {
         )}
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">
-          <div className="h-[640px] w-full overflow-hidden rounded-xl border border-stone-200 bg-white">
+          <div className="h-[640px] w-full overflow-hidden rounded-card border border-twilight-ink bg-starless-night">
             {isLoading && (
-              <div className="flex h-full items-center justify-center text-sm text-stone-500">
+              <div className="flex h-full items-center justify-center text-body text-slate-gray">
                 Loading…
               </div>
             )}
             {error && (
-              <div className="flex h-full items-center justify-center text-sm text-red-700">
+              <div className="flex h-full items-center justify-center text-body text-crimson-red">
                 {String(error)}
               </div>
             )}
             {!isLoading && data && data.nodes.length === 0 && (
-              <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-stone-500">
+              <div className="flex h-full flex-col items-center justify-center gap-3 text-body text-slate-gray">
                 <p>No entities yet. Run a plan or hit Reindex to seed the graph.</p>
-                <button
+                <Button
+                  size="sm"
                   type="button"
                   onClick={() => reindexNow(false)}
                   disabled={reindex.isPending}
-                  className="rounded-md bg-stone-900 px-4 py-1.5 text-xs text-white hover:bg-stone-700 disabled:opacity-40"
                 >
                   Reindex now
-                </button>
+                </Button>
               </div>
             )}
             {!isLoading && filtered.nodes.length > 0 && (
@@ -224,44 +228,43 @@ export default function MemoryGraph() {
                   ctx.arc(n.x, n.y, radius, 0, 2 * Math.PI);
                   ctx.fill();
                 }}
-                linkColor={() => "#d6d3d1"}
+                linkColor={() => "#1c1d1f"}
                 linkWidth={(l: any) => Math.max(0.5, Math.log2(1 + l.value))}
                 onNodeClick={onNodeClick}
                 cooldownTicks={120}
                 d3AlphaDecay={0.025}
                 d3VelocityDecay={0.45}
-                backgroundColor="#fafaf9"
+                backgroundColor="#030719"
               />
             )}
           </div>
 
-          <aside className="rounded-xl border border-stone-200 bg-white p-4">
+          <Card surface="starless" className="self-start">
             {detail && detail.entity ? (
               <EntityDetailPanel
                 node={detail.entity}
                 mentions={detail.mentions}
               />
             ) : (
-              <div className="space-y-3 text-sm text-stone-500">
+              <div className="space-y-3 text-body text-slate-gray">
                 <p>Click any node to see its mentions.</p>
                 <p>
-                  Node size reflects mention count. A dark ring means the
+                  Node size reflects mention count. A white ring means the
                   entity matched a canonical node in the health graph.
                 </p>
                 {data && (
-                  <p className="font-mono text-[11px] text-stone-400">
+                  <p className="font-mono text-[11px] text-pewter">
                     {data.nodes.length} nodes · {data.links.length} edges
                   </p>
                 )}
               </div>
             )}
-          </aside>
+          </Card>
         </div>
       </div>
     </div>
   );
 }
-
 
 function EntityDetailPanel({
   node,
@@ -279,57 +282,60 @@ function EntityDetailPanel({
           className="h-3 w-3 rounded-full"
           style={{ backgroundColor: color }}
         />
-        <span className="text-[10px] uppercase tracking-wider text-stone-500">
+        <span className="text-[10px] uppercase tracking-[0.2em] text-pewter">
           {label}
         </span>
       </div>
-      <h2 className="font-serif text-lg text-stone-900">{node.name}</h2>
+      <h2 className="text-subheading font-semibold text-frost">{node.name}</h2>
       {node.canonical_id && (
-        <div className="mt-1 inline-flex items-center gap-1 rounded bg-stone-100 px-1.5 py-0.5 font-mono text-[10px] text-stone-700">
-          canonical: {node.canonical_id}
+        <div className="mt-1.5">
+          <Badge tone="teal">canonical: {node.canonical_id}</Badge>
         </div>
       )}
-      <dl className="mt-3 grid grid-cols-3 gap-2 font-mono text-[11px] text-stone-600">
+      <dl className="mt-3 grid grid-cols-3 gap-2 font-mono text-[11px] text-slate-gray">
         <div>
-          <dt className="text-stone-400">mentions</dt>
-          <dd>{node.mention_count}</dd>
+          <dt className="text-pewter">mentions</dt>
+          <dd className="text-frost">{node.mention_count}</dd>
         </div>
         <div>
-          <dt className="text-stone-400">first seen</dt>
-          <dd>{node.first_seen ? formatTs(node.first_seen) : "—"}</dd>
+          <dt className="text-pewter">first seen</dt>
+          <dd className="text-frost">
+            {node.first_seen ? formatTs(node.first_seen) : "—"}
+          </dd>
         </div>
         <div>
-          <dt className="text-stone-400">last seen</dt>
-          <dd>{node.last_seen ? formatTs(node.last_seen) : "—"}</dd>
+          <dt className="text-pewter">last seen</dt>
+          <dd className="text-frost">
+            {node.last_seen ? formatTs(node.last_seen) : "—"}
+          </dd>
         </div>
       </dl>
 
-      <h3 className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-stone-500">
+      <h3 className="mt-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-pewter">
         Mentions ({mentions.length})
       </h3>
-      <ol className="mt-1.5 space-y-2">
+      <ol className="mt-2 space-y-2">
         {mentions.map((m) => (
           <li
             key={m.id}
-            className="rounded-md border border-stone-200 bg-stone-50 p-2 text-[11px]"
+            className="rounded-default border border-twilight-ink bg-midnight-eclipse p-2 text-[11px]"
           >
-            <div className="mb-0.5 flex justify-between text-stone-500">
+            <div className="mb-0.5 flex justify-between text-slate-gray">
               <span className="font-mono">{m.source_kind}</span>
               <span className="font-mono">{formatTs(m.ts)}</span>
             </div>
-            <div className="text-stone-800">
+            <div className="text-ghostly-gray">
               {m.context_snippet || "(no snippet)"}
             </div>
           </li>
         ))}
         {mentions.length === 0 && (
-          <li className="text-[11px] text-stone-500">No recorded mentions.</li>
+          <li className="text-[11px] text-pewter">No recorded mentions.</li>
         )}
       </ol>
     </div>
   );
 }
-
 
 function formatTs(ts: number): string {
   try {

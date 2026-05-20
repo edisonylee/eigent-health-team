@@ -1,5 +1,7 @@
 import { useMCPServers, useModelStatus, usePrompts } from "../lib/queries";
 import { ROLE_LABEL, ROLE_ORDER, Role } from "../store";
+import { Badge } from "../components/ui/Badge";
+import { Card } from "../components/ui/Card";
 
 const ROLE_TOOLS: Record<Role, string[]> = {
   researcher: [
@@ -14,9 +16,6 @@ const ROLE_TOOLS: Record<Role, string[]> = {
   summarizer: [],
 };
 
-// Each agent-facing tool name routes through a specific MCP server.
-// Used to compute connected/disabled state without exposing raw MCP
-// tool names in the roster UI.
 const TOOL_TO_SERVER: Record<string, string> = {
   query_health_graph: "health_kb",
   search_health_kb: "health_kb",
@@ -31,6 +30,13 @@ const ROLE_BLURB: Record<Role, string> = {
   analyst: "Picks the 3–4 highest-leverage focus areas from the profile.",
   critic: "Pressure-tests the plan for risks, contraindications, and red flags.",
   summarizer: "Assembles the final personalized health plan in markdown.",
+};
+
+const ROLE_TONE: Record<Role, React.ComponentProps<typeof Badge>["tone"]> = {
+  researcher: "sky",
+  analyst: "purple",
+  critic: "gold",
+  summarizer: "green",
 };
 
 export default function Agents() {
@@ -49,44 +55,50 @@ export default function Agents() {
   return (
     <div className="px-6 py-8">
       <div className="mx-auto max-w-5xl">
-        <h1 className="mb-2 font-serif text-2xl text-stone-900">Agent roster</h1>
-        <p className="mb-5 text-sm text-stone-500">
+        <h1 className="mb-2 text-heading font-semibold text-frost">
+          Agent roster
+        </h1>
+        <p className="mb-6 text-body text-slate-gray">
           Four specialists, coordinated by a CAMEL Workforce. Each can ask the
           user a clarifying question mid-run via the in-process{" "}
-          <code className="rounded bg-stone-100 px-1">request_human_input</code>{" "}
+          <code className="rounded bg-frost/10 px-1 text-frost">
+            request_human_input
+          </code>{" "}
           tool.
         </p>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {ROLE_ORDER.map((role) => (
-            <div
-              key={role}
-              className="rounded-lg border border-stone-200 bg-white p-5"
-            >
-              <div className="mb-1 text-[11px] uppercase tracking-wider text-stone-400">
-                {role}
+            <Card key={role} surface="starless" className="flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <Badge tone={ROLE_TONE[role]}>{role}</Badge>
+                {status && (
+                  <span className="font-mono text-[10px] text-pewter">
+                    {status.backend} · {status.model}
+                  </span>
+                )}
               </div>
-              <h2 className="font-serif text-lg text-stone-900">
-                {ROLE_LABEL[role]}
-              </h2>
-              <p className="mt-1 text-sm text-stone-600">{ROLE_BLURB[role]}</p>
 
-              <div className="mt-3">
-                <div className="text-[10px] uppercase tracking-wider text-stone-400">
+              <div>
+                <h2 className="text-subheading font-medium text-frost">
+                  {ROLE_LABEL[role]}
+                </h2>
+                <p className="mt-1 text-body text-slate-gray">
+                  {ROLE_BLURB[role]}
+                </p>
+              </div>
+
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.2em] text-pewter">
                   Tools
                 </div>
-                <div className="mt-1 flex flex-wrap gap-1">
+                <div className="mt-1.5 flex flex-wrap gap-1">
                   {ROLE_TOOLS[role].map((t) => {
                     const live = isToolLive(t);
                     return (
-                      <span
+                      <Badge
                         key={t}
-                        className={
-                          "rounded px-2 py-0.5 font-mono text-[10px] " +
-                          (live
-                            ? "bg-green-100 text-green-800"
-                            : "bg-stone-100 text-stone-500")
-                        }
+                        tone={live ? "green" : "neutral"}
                         title={
                           live
                             ? `via MCP (${TOOL_TO_SERVER[t]})`
@@ -94,35 +106,29 @@ export default function Agents() {
                         }
                       >
                         {t}
-                      </span>
+                      </Badge>
                     );
                   })}
-                  <span
-                    className="rounded bg-amber-100 px-2 py-0.5 font-mono text-[10px] text-amber-800"
-                    title="In-process (not MCP) — blocking semantic ties to the runner thread"
+                  <Badge
+                    tone="fuchsia"
+                    title="In-process — blocking semantic ties to the runner thread"
                   >
                     request_human_input · in-process
-                  </span>
+                  </Badge>
                 </div>
               </div>
 
-              {status && (
-                <div className="mt-3 text-[11px] text-stone-500">
-                  backend: {status.backend} · {status.model}
-                </div>
-              )}
-
               {prompts && (
-                <details className="mt-3 text-xs text-stone-600">
-                  <summary className="cursor-pointer text-stone-500 hover:text-stone-800">
+                <details className="text-[12px] text-slate-gray">
+                  <summary className="cursor-pointer text-slate-gray hover:text-frost">
                     system prompt
                   </summary>
-                  <pre className="mt-2 max-h-72 overflow-y-auto rounded bg-stone-50 p-3 text-[11px] font-mono whitespace-pre-wrap">
+                  <pre className="mt-2 max-h-72 overflow-y-auto whitespace-pre-wrap rounded-default border border-twilight-ink bg-midnight-eclipse p-3 font-mono text-[11px] text-ghostly-gray">
                     {prompts[role]}
                   </pre>
                 </details>
               )}
-            </div>
+            </Card>
           ))}
         </div>
       </div>

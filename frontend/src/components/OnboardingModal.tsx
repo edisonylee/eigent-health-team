@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useModelStatus, useUpdateModel } from "../lib/queries";
 import { useStore } from "../store";
+import { Button } from "./ui/Button";
+import { Input } from "./ui/Input";
 
 /**
- * Shown on first run when no model backend is usable.
- * Mirrors Eigent's onboarding: choose between cloud (OpenAI key) or local (Ollama).
+ * Shown on first run when no model backend is usable. Mirrors Eigent's
+ * onboarding: choose cloud (OpenAI) or local (Ollama).
  */
 export default function OnboardingModal() {
   const password = useStore((s) => s.password);
@@ -29,10 +31,6 @@ export default function OnboardingModal() {
       setError("Paste your OpenAI API key first.");
       return;
     }
-    // The key itself isn't persisted client-side — it's set in the
-    // backend's process env via a dedicated endpoint or .env. For now, the
-    // user should set OPENAI_API_KEY in the environment and click "I've
-    // added the key" — this modal just hot-switches the backend.
     try {
       await update.mutateAsync({ password, backend: "openai" });
     } catch (e) {
@@ -56,136 +54,146 @@ export default function OnboardingModal() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-6 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-midnight-eclipse/80 p-6 backdrop-blur-md"
       role="dialog"
       aria-modal="true"
     >
-      <div className="w-full max-w-xl overflow-hidden rounded-2xl border border-stone-200 bg-stone-50 shadow-2xl">
-        <div className="border-b border-stone-200 bg-white px-6 py-4">
-          <div className="text-[10px] uppercase tracking-wider text-amber-700">
+      <div className="w-full max-w-xl overflow-hidden rounded-card bg-starless-night shadow-xl shadow-subtle-1">
+        <div className="bg-gradient-nebula px-6 py-5">
+          <div className="text-[10px] uppercase tracking-[0.2em] text-frost/85">
             Setup · choose a model backend
           </div>
-          <h2 className="mt-1 font-serif text-xl text-stone-900">
+          <h2 className="mt-2 text-heading-sm font-semibold text-frost">
             Welcome to HealthOS
           </h2>
-          <p className="mt-1 text-sm text-stone-600">
+          <p className="mt-1 text-body text-frost/85">
             Pick a backend to run the four-agent Workforce against. You can
-            switch at any time from Settings.
+            switch any time from Settings.
           </p>
         </div>
 
         <div className="grid grid-cols-1 gap-3 px-6 py-5 md:grid-cols-2">
-          <button
-            type="button"
+          <PickCard
+            label="OpenAI"
+            blurb="Cloud-hosted models (GPT-4o by default). Fastest onboarding; requires an API key."
+            footnote={`key on machine: ${status.openai_key_set ? "detected" : "not detected"}`}
+            picked={picked === "openai"}
             onClick={() => setPicked("openai")}
-            className={
-              "rounded-lg border p-4 text-left transition-colors " +
-              (picked === "openai"
-                ? "border-stone-700 bg-white"
-                : "border-stone-200 bg-white/60 hover:border-stone-400")
-            }
-          >
-            <div className="text-sm font-semibold text-stone-900">OpenAI</div>
-            <div className="mt-1 text-xs text-stone-500">
-              Cloud-hosted models (GPT-4o by default). Fastest onboarding;
-              requires an API key.
-            </div>
-            <div className="mt-2 text-[11px] text-stone-400">
-              key on machine:{" "}
-              {status.openai_key_set ? "detected" : "not detected"}
-            </div>
-          </button>
-          <button
-            type="button"
+          />
+          <PickCard
+            label="Local · Ollama"
+            blurb="Fully local. No API key, no cloud, no cost. Slower; needs Ollama running."
+            footnote={`reachable: ${status.ollama_reachable ? "yes" : "no"}`}
+            picked={picked === "ollama"}
             onClick={() => setPicked("ollama")}
-            className={
-              "rounded-lg border p-4 text-left transition-colors " +
-              (picked === "ollama"
-                ? "border-stone-700 bg-white"
-                : "border-stone-200 bg-white/60 hover:border-stone-400")
-            }
-          >
-            <div className="text-sm font-semibold text-stone-900">
-              Local · Ollama
-            </div>
-            <div className="mt-1 text-xs text-stone-500">
-              Fully local. No API key, no cloud, no cost. Slower; needs
-              Ollama running.
-            </div>
-            <div className="mt-2 text-[11px] text-stone-400">
-              reachable: {status.ollama_reachable ? "yes" : "no"}
-            </div>
-          </button>
+          />
         </div>
 
         {picked === "openai" && (
-          <div className="space-y-3 border-t border-stone-200 bg-white px-6 py-4">
-            <label className="block text-xs text-stone-600">
-              Set <code className="rounded bg-stone-100 px-1">OPENAI_API_KEY</code> in
-              your backend environment (e.g. <code className="rounded bg-stone-100 px-1">.env</code>),
-              then paste it here as confirmation.
+          <div className="space-y-3 border-t border-twilight-ink bg-midnight-eclipse/40 px-6 py-4">
+            <label className="block text-[12px] text-slate-gray">
+              Set{" "}
+              <code className="rounded bg-frost/10 px-1 text-frost">
+                OPENAI_API_KEY
+              </code>{" "}
+              in your backend environment (e.g.{" "}
+              <code className="rounded bg-frost/10 px-1 text-frost">.env</code>
+              ), then paste it here as confirmation.
             </label>
-            <input
+            <Input
               type="password"
               value={openaiKey}
               onChange={(e) => setOpenaiKey(e.target.value)}
               placeholder="sk-..."
-              className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm outline-none focus:border-stone-500"
             />
-            <button
+            <Button
               type="button"
               onClick={useOpenAI}
               disabled={update.isPending}
-              className="w-full rounded-md bg-stone-900 px-3 py-2 text-sm text-white hover:bg-stone-700 disabled:opacity-40"
+              className="w-full"
             >
               {update.isPending ? "Switching…" : "Use OpenAI"}
-            </button>
+            </Button>
           </div>
         )}
 
         {picked === "ollama" && (
-          <div className="space-y-3 border-t border-stone-200 bg-white px-6 py-4">
+          <div className="space-y-3 border-t border-twilight-ink bg-midnight-eclipse/40 px-6 py-4">
             <div className="grid grid-cols-2 gap-3">
-              <label className="block text-xs text-stone-600">
+              <label className="block text-[12px] text-slate-gray">
                 Host
-                <input
+                <Input
                   value={ollamaHost}
                   onChange={(e) => setOllamaHost(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-stone-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-stone-500"
+                  className="mt-1"
                 />
               </label>
-              <label className="block text-xs text-stone-600">
+              <label className="block text-[12px] text-slate-gray">
                 Model
-                <input
+                <Input
                   value={ollamaModel}
                   onChange={(e) => setOllamaModel(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-stone-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-stone-500"
+                  className="mt-1"
                 />
               </label>
             </div>
-            <button
+            <Button
               type="button"
               onClick={useOllama}
               disabled={update.isPending}
-              className="w-full rounded-md bg-stone-900 px-3 py-2 text-sm text-white hover:bg-stone-700 disabled:opacity-40"
+              className="w-full"
             >
               {update.isPending ? "Switching…" : "Use local Ollama"}
-            </button>
+            </Button>
             {!status.ollama_reachable && (
-              <p className="text-[11px] text-amber-700">
+              <p className="text-[11px] text-goldenrod">
                 Ollama isn't reachable at {ollamaHost}. Start it with{" "}
-                <code className="rounded bg-stone-100 px-1">ollama serve</code>.
+                <code className="rounded bg-frost/10 px-1 text-frost">
+                  ollama serve
+                </code>
+                .
               </p>
             )}
           </div>
         )}
 
         {error && (
-          <div className="border-t border-red-200 bg-red-50 px-6 py-2 text-xs text-red-700">
+          <div className="border-t border-crimson-red/30 bg-crimson-red/10 px-6 py-2 text-[12px] text-crimson-red">
             {error}
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+function PickCard({
+  label,
+  blurb,
+  footnote,
+  picked,
+  onClick,
+}: {
+  label: string;
+  blurb: string;
+  footnote: string;
+  picked: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        "rounded-default border p-4 text-left transition-all " +
+        (picked
+          ? "border-electric-blue/60 bg-frost/5 shadow-subtle-1"
+          : "border-twilight-ink bg-midnight-eclipse/40 hover:border-frost/30 hover:bg-frost/[0.03]")
+      }
+    >
+      <div className="text-body font-semibold text-frost">{label}</div>
+      <div className="mt-1 text-[12px] text-slate-gray">{blurb}</div>
+      <div className="mt-2 text-[11px] text-pewter">{footnote}</div>
+    </button>
   );
 }

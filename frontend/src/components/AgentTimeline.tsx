@@ -1,31 +1,28 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useTimeline } from "../lib/queries";
 import { ROLE_LABEL, Role, TimelineRow } from "../store";
+import { Badge } from "./ui/Badge";
 
 interface Props {
-  /** Read events from the DB via /api/runs/{taskId}/timeline. */
   taskId?: string;
-  /** Render these events directly (live-mode override). */
   events?: TimelineRow[];
 }
 
-const ROLE_COLOR: Record<string, string> = {
-  researcher: "bg-blue-100 text-blue-800",
-  analyst: "bg-purple-100 text-purple-800",
-  critic: "bg-amber-100 text-amber-800",
-  summarizer: "bg-emerald-100 text-emerald-800",
+const ROLE_TONE: Record<string, React.ComponentProps<typeof Badge>["tone"]> = {
+  researcher: "sky",
+  analyst: "purple",
+  critic: "gold",
+  summarizer: "green",
 };
 
 export default function AgentTimeline({ taskId, events }: Props) {
-  // Live mode: caller passes the event array directly (e.g. from
-  // store.eventLog while a run is in progress). Skip the DB fetch.
   const liveMode = events !== undefined;
   const dbQuery = useTimeline(liveMode ? undefined : taskId);
 
   if (liveMode) {
     if (!events || events.length === 0) {
       return (
-        <div className="text-xs text-stone-400">
+        <div className="text-[12px] text-pewter">
           Waiting for the first event…
         </div>
       );
@@ -34,28 +31,26 @@ export default function AgentTimeline({ taskId, events }: Props) {
   }
 
   if (!taskId)
-    return (
-      <div className="text-xs text-stone-400">No task selected.</div>
-    );
+    return <div className="text-[12px] text-pewter">No task selected.</div>;
   if (dbQuery.isLoading)
-    return <div className="text-sm text-stone-500">loading timeline…</div>;
+    return <div className="text-body text-slate-gray">loading timeline…</div>;
   if (dbQuery.error)
     return (
-      <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+      <div className="rounded-default border border-crimson-red/30 bg-crimson-red/10 px-3 py-2 text-[12px] text-crimson-red">
         {String(dbQuery.error)}
       </div>
     );
   const rows = dbQuery.data || [];
   if (rows.length === 0)
     return (
-      <div className="text-xs text-stone-400">No events recorded yet.</div>
+      <div className="text-[12px] text-pewter">No events recorded yet.</div>
     );
   return <Render rows={rows} />;
 }
 
 function Render({ rows }: { rows: TimelineRow[] }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-stone-200 bg-white">
+    <div className="overflow-hidden rounded-card border border-twilight-ink bg-starless-night">
       <AnimatePresence initial>
         {rows.map((ev, i) => (
           <motion.div
@@ -63,7 +58,7 @@ function Render({ rows }: { rows: TimelineRow[] }) {
             initial={{ opacity: 0, x: -8 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: Math.min(i * 0.015, 0.6), duration: 0.18 }}
-            className="border-b border-stone-100 px-4 py-3 last:border-b-0"
+            className="border-b border-twilight-ink px-4 py-3 last:border-b-0"
           >
             <Row event={ev} />
           </motion.div>
@@ -73,19 +68,26 @@ function Render({ rows }: { rows: TimelineRow[] }) {
   );
 }
 
-function Row({ event }: { event: { ts: number; kind: string; role: string | null; payload: Record<string, any> } }) {
+function Row({
+  event,
+}: {
+  event: {
+    ts: number;
+    kind: string;
+    role: string | null;
+    payload: Record<string, any>;
+  };
+}) {
   const time = new Date(event.ts * 1000).toLocaleTimeString();
-  const roleBadge = event.role ? (
-    <span className={`rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wider ${ROLE_COLOR[event.role] || "bg-stone-100 text-stone-700"}`}>
-      {ROLE_LABEL[event.role as Role] || event.role}
-    </span>
-  ) : null;
-
   const meta = (
-    <div className="flex items-center gap-2 text-[11px] text-stone-500">
+    <div className="flex items-center gap-2 text-[11px] text-slate-gray">
       <span className="font-mono">{time}</span>
-      {roleBadge}
-      <span className="font-mono uppercase tracking-wider text-stone-400">
+      {event.role && (
+        <Badge tone={ROLE_TONE[event.role] ?? "neutral"}>
+          {ROLE_LABEL[event.role as Role] || event.role}
+        </Badge>
+      )}
+      <span className="font-mono uppercase tracking-wider text-pewter">
         {event.kind}
       </span>
     </div>
@@ -95,10 +97,10 @@ function Row({ event }: { event: { ts: number; kind: string; role: string | null
     return (
       <div>
         {meta}
-        <div className="mt-1 text-sm text-stone-800">
+        <div className="mt-1 text-body text-frost">
           <span className="font-mono">{event.payload.tool_name}</span>
           {event.payload.tool_query && (
-            <span className="ml-2 text-stone-500">
+            <span className="ml-2 text-slate-gray">
               ({event.payload.tool_query})
             </span>
           )}
@@ -106,10 +108,13 @@ function Row({ event }: { event: { ts: number; kind: string; role: string | null
         {(event.payload.retrieved_sources?.length ||
           event.payload.retrieved_entities?.length) && (
           <details className="mt-1">
-            <summary className="cursor-pointer text-[11px] text-stone-500 hover:text-stone-800">
-              retrieved {(event.payload.retrieved_sources?.length || 0) + (event.payload.retrieved_entities?.length || 0)} item(s)
+            <summary className="cursor-pointer text-[11px] text-slate-gray hover:text-frost">
+              retrieved{" "}
+              {(event.payload.retrieved_sources?.length || 0) +
+                (event.payload.retrieved_entities?.length || 0)}{" "}
+              item(s)
             </summary>
-            <pre className="mt-1 max-h-60 overflow-y-auto rounded bg-stone-50 p-2 text-[10px] font-mono whitespace-pre-wrap">
+            <pre className="mt-1 max-h-60 overflow-y-auto whitespace-pre-wrap rounded-default bg-midnight-eclipse p-2 font-mono text-[10px] text-ghostly-gray">
               {JSON.stringify(
                 event.payload.retrieved_sources ||
                   event.payload.retrieved_entities,
@@ -127,19 +132,19 @@ function Row({ event }: { event: { ts: number; kind: string; role: string | null
     return (
       <div>
         {meta}
-        <div className="mt-1 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
-          <div className="text-[10px] uppercase tracking-wider text-amber-700">
+        <div className="mt-1 rounded-default border border-goldenrod/30 bg-goldenrod/10 px-3 py-2">
+          <div className="text-[10px] uppercase tracking-[0.2em] text-goldenrod">
             Agent asked
           </div>
-          <div className="mt-0.5 text-sm text-stone-800">
+          <div className="mt-0.5 text-body text-frost">
             {event.payload.question}
           </div>
           {event.payload.choices?.length > 0 && (
-            <div className="mt-1 flex flex-wrap gap-1">
+            <div className="mt-1.5 flex flex-wrap gap-1">
               {event.payload.choices.map((c: string, i: number) => (
                 <span
                   key={i}
-                  className="rounded bg-white px-2 py-0.5 text-[11px] text-stone-700"
+                  className="rounded bg-frost/10 px-2 py-0.5 text-[11px] text-ghostly-gray"
                 >
                   {c}
                 </span>
@@ -155,11 +160,11 @@ function Row({ event }: { event: { ts: number; kind: string; role: string | null
     return (
       <div>
         {meta}
-        <div className="mt-1 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2">
-          <div className="text-[10px] uppercase tracking-wider text-emerald-700">
+        <div className="mt-1 rounded-default border border-vivid-green/30 bg-vivid-green/10 px-3 py-2">
+          <div className="text-[10px] uppercase tracking-[0.2em] text-vivid-green">
             You answered
           </div>
-          <div className="mt-0.5 text-sm text-stone-800">
+          <div className="mt-0.5 text-body text-frost">
             {event.payload.answer}
           </div>
         </div>
@@ -171,24 +176,26 @@ function Row({ event }: { event: { ts: number; kind: string; role: string | null
     return (
       <div>
         {meta}
-        <div className="mt-1 font-mono text-xs text-stone-600">
+        <div className="mt-1 font-mono text-[12px] text-slate-gray">
           prompt {event.payload.prompt_tokens} · completion{" "}
           {event.payload.completion_tokens} · ${" "}
-          {(event.payload.cost ?? 0).toFixed(4)}
+          <span className="text-frost">
+            {(event.payload.cost ?? 0).toFixed(4)}
+          </span>
         </div>
       </div>
     );
   }
 
   if (event.kind === "worker_chunk") {
-    return null; // too noisy for the timeline; show in the worker drawer instead
+    return null;
   }
 
   if (event.kind === "error") {
     return (
       <div>
         {meta}
-        <div className="mt-1 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div className="mt-1 rounded-default border border-crimson-red/30 bg-crimson-red/10 px-3 py-2 text-body text-crimson-red">
           {event.payload.text}
         </div>
       </div>
@@ -199,7 +206,9 @@ function Row({ event }: { event: { ts: number; kind: string; role: string | null
     <div>
       {meta}
       {event.payload.text && (
-        <div className="mt-1 text-sm text-stone-700">{event.payload.text}</div>
+        <div className="mt-1 text-body text-ghostly-gray">
+          {event.payload.text}
+        </div>
       )}
     </div>
   );

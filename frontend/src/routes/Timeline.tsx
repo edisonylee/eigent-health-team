@@ -6,12 +6,10 @@ export default function Timeline() {
   return (
     <div className="px-6 py-8">
       <div className="mx-auto max-w-5xl">
-        <h1 className="mb-2 font-serif text-2xl text-stone-900">
+        <h1 className="mb-2 text-heading font-semibold text-frost">
           Run timeline
         </h1>
-        <p className="mb-5 font-mono text-xs text-stone-500">
-          task: {taskId}
-        </p>
+        <p className="mb-5 font-mono text-[11px] text-pewter">task: {taskId}</p>
         <AgentTimeline taskId={taskId} />
       </div>
     </div>

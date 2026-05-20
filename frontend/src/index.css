@@ -2,31 +2,109 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Lightweight memo styling — avoids pulling in the typography plugin. */
+/* Celestial Command Center — dark theme design system.
+   Tokens mirror DESIGN (5).md so component code can reference them
+   either via Tailwind utilities (color names below) or directly via
+   var(--color-xyz) in arbitrary CSS. */
+:root {
+  /* Surfaces */
+  --color-midnight-eclipse: #000000;
+  --color-starless-night: #030719;
+  --color-twilight-ink: #1c1d1f;
+  --color-deep-ocean: #001b33;
+  --color-frost: #ffffff;
+  --color-ghostly-gray: #e5e7eb;
+  --color-ash-gray: #333333;
+  --color-iron-gray: #666666;
+  --color-slate-gray: #70757c;
+  --color-pewter: #999999;
+  --color-cloud: #cccccc;
+
+  /* Accents */
+  --color-electric-blue: #0088ff;
+  --color-vivid-green: #16c253;
+  --color-sunset-orange: #e6714f;
+  --color-goldenrod: #ffb764;
+  --color-magenta-burst: #b855e7;
+  --color-sunshine-yellow: #ffdd00;
+  --color-crimson-red: #ff5252;
+  --color-teal-glow: #1cecbb;
+  --color-fuchsia-flare: #dd55e7;
+  --color-sky-blue: #60a5fa;
+
+  /* Gradients */
+  --gradient-twilight: linear-gradient(
+    rgba(0, 0, 0, 0.5) 0.85%,
+    rgba(0, 5, 46, 0.5) 25.81%,
+    rgba(41, 40, 94, 0.5) 58.36%,
+    rgba(84, 60, 123, 0.5) 79.52%,
+    rgba(133, 90, 146, 0.5) 95.8%,
+    rgba(195, 134, 171, 0.5) 107.19%
+  );
+  --gradient-nebula: linear-gradient(
+    rgb(0, 0, 0) 0.85%,
+    rgb(17, 45, 114) 33.4%,
+    rgb(75, 82, 170) 49.68%,
+    rgb(168, 135, 220) 70.84%,
+    rgb(230, 196, 231) 95.8%,
+    rgb(252, 219, 239) 107.19%
+  );
+
+  /* Shadows */
+  --shadow-subtle: rgba(255, 255, 255, 0.2) 0 0 0 2px inset;
+  --shadow-subtle-1: rgba(255, 255, 255, 0.2) 0 0 0 1px inset;
+  --shadow-md: rgba(0, 0, 0, 0.3) 0 0 10px 0;
+  --shadow-card: rgba(0, 0, 0, 0.25) 0 1px 4px 0, rgba(0, 0, 0, 0.1) 0 4px 59px 0;
+  --shadow-xl: rgba(0, 0, 0, 0.4) 0 8px 32px 0;
+  --shadow-lg: rgba(0, 0, 0, 0.25) 0 3px 20px 0;
+}
+
+html,
+body {
+  background-color: var(--color-midnight-eclipse);
+  color: var(--color-frost);
+  font-family:
+    "Inter",
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Memo styling — kept LIGHT per the design system's "rhythmic dark/light
+   contrast" rule. The MemoPanel is a Frost white card inside the dark canvas. */
+.memo {
+  color: #44403c;
+}
 .memo h1 {
-  font-size: 1.25rem;
+  font-size: 1.5rem;
   font-weight: 600;
-  margin: 0.25rem 0 0.5rem;
+  margin: 0.5rem 0 0.75rem;
   color: #1c1917;
+  letter-spacing: -0.025em;
 }
 .memo h2 {
-  font-size: 1rem;
+  font-size: 1.1rem;
   font-weight: 600;
-  margin: 1rem 0 0.35rem;
-  color: #44403c;
+  margin: 1.25rem 0 0.5rem;
+  color: #1c1917;
 }
 .memo p {
-  margin: 0.4rem 0;
-  font-size: 0.875rem;
+  margin: 0.5rem 0;
+  font-size: 0.9375rem;
   line-height: 1.65;
-  color: #44403c;
 }
 .memo ul,
 .memo ol {
-  margin: 0.4rem 0;
-  padding-left: 1.15rem;
-  font-size: 0.875rem;
-  color: #44403c;
+  margin: 0.5rem 0;
+  padding-left: 1.25rem;
+  font-size: 0.9375rem;
+  line-height: 1.6;
 }
 .memo ul {
   list-style: disc;
@@ -35,9 +113,31 @@
   list-style: decimal;
 }
 .memo li {
-  margin: 0.2rem 0;
+  margin: 0.25rem 0;
 }
 .memo strong {
   font-weight: 600;
   color: #1c1917;
+}
+
+/* React Flow overrides — keep the graph dark-friendly. */
+.react-flow__background {
+  background-color: var(--color-midnight-eclipse);
+}
+.react-flow__edge-path {
+  stroke: var(--color-twilight-ink);
+}
+.react-flow__attribution {
+  background: transparent;
+  color: var(--color-slate-gray);
+}
+
+/* Form control reset for dark surfaces — placeholders + selection. */
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-slate-gray);
+}
+::selection {
+  background: var(--color-electric-blue);
+  color: var(--color-frost);
 }

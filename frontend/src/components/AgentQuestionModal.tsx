@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { ROLE_LABEL, useStore } from "../store";
+import { Button } from "./ui/Button";
+import { Textarea } from "./ui/Input";
 
 interface AgentQuestionModalProps {
-  /** Called with the answer to submit; component handles the dismiss + queue. */
   onAnswer: (request_id: string, answer: string) => Promise<void> | void;
 }
 
@@ -18,7 +19,6 @@ export default function AgentQuestionModal({ onAnswer }: AgentQuestionModalProps
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
 
-  // Reset the textarea every time a new question becomes the head.
   useEffect(() => {
     setText("");
     setBusy(false);
@@ -32,24 +32,22 @@ export default function AgentQuestionModal({ onAnswer }: AgentQuestionModalProps
     try {
       await onAnswer(head.request_id, answer);
     } finally {
-      // Always dismiss so the next queued question can surface, even if the
-      // network call failed (the user can resubmit downstream).
       dismiss(head.request_id);
     }
   };
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-stone-900/30 p-6 backdrop-blur-sm md:items-center"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-midnight-eclipse/70 p-6 backdrop-blur-md md:items-center"
       role="dialog"
       aria-modal="true"
     >
-      <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-stone-200 bg-stone-50 shadow-2xl">
-        <div className="border-b border-stone-200 bg-white px-6 py-4">
-          <div className="text-[10px] uppercase tracking-wider text-amber-700">
+      <div className="w-full max-w-lg overflow-hidden rounded-card bg-starless-night shadow-xl shadow-subtle-1">
+        <div className="border-b border-twilight-ink px-6 py-4">
+          <div className="text-[10px] uppercase tracking-[0.2em] text-goldenrod">
             Human-in-the-loop · {ROLE_LABEL[head.role]} needs input
           </div>
-          <h2 className="mt-1 font-serif text-lg text-stone-900">
+          <h2 className="mt-2 text-subheading font-medium text-frost">
             {head.question}
           </h2>
         </div>
@@ -63,7 +61,7 @@ export default function AgentQuestionModal({ onAnswer }: AgentQuestionModalProps
                   type="button"
                   onClick={() => submit(c)}
                   disabled={busy}
-                  className="rounded-md border border-stone-300 bg-white px-3 py-2 text-left text-sm text-stone-800 transition-colors hover:border-stone-500 hover:bg-stone-50 disabled:opacity-40"
+                  className="rounded-default border border-twilight-ink bg-frost/5 px-3 py-2 text-left text-body text-frost transition-colors hover:bg-frost/10 hover:shadow-subtle-1 disabled:opacity-40"
                 >
                   {c}
                 </button>
@@ -71,7 +69,7 @@ export default function AgentQuestionModal({ onAnswer }: AgentQuestionModalProps
             </div>
           ) : (
             <div>
-              <textarea
+              <Textarea
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={(e) => {
@@ -80,32 +78,30 @@ export default function AgentQuestionModal({ onAnswer }: AgentQuestionModalProps
                 placeholder="Your answer… (⌘/Ctrl+Enter to submit)"
                 rows={3}
                 disabled={busy}
-                className="w-full resize-y rounded-md border border-stone-300 bg-white px-3 py-2 text-sm outline-none focus:border-stone-500 disabled:bg-stone-100"
               />
-              <button
+              <Button
                 type="button"
                 onClick={() => submit(text)}
                 disabled={!text.trim() || busy}
-                className="mt-2 w-full rounded-md bg-stone-900 px-3 py-2 text-sm text-white hover:bg-stone-700 disabled:opacity-40"
+                className="mt-2 w-full"
               >
                 {busy ? "Submitting…" : "Submit answer"}
-              </button>
+              </Button>
             </div>
           )}
         </div>
 
-        <div className="flex items-center justify-between border-t border-stone-200 bg-white px-6 py-3 text-xs">
-          <span className="text-stone-500">
-            Not sure? Let the agent decide:
-          </span>
-          <button
+        <div className="flex items-center justify-between border-t border-twilight-ink bg-midnight-eclipse/40 px-6 py-3 text-[12px]">
+          <span className="text-slate-gray">Not sure? Let the agent decide:</span>
+          <Button
+            variant="ghost"
+            size="sm"
             type="button"
             onClick={() => submit("use your best judgment")}
             disabled={busy}
-            className="rounded-md border border-stone-300 px-3 py-1.5 text-stone-700 hover:bg-stone-100 disabled:opacity-40"
           >
             Use your best judgment
-          </button>
+          </Button>
         </div>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import { ROLE_LABEL, useStore } from "../store";
+import { Badge } from "./ui/Badge";
 
 /** Split streamed text into the (## Reasoning, ## Conclusion) parts when present. */
 function splitReasoning(text: string): { reasoning: string; rest: string } {
@@ -9,7 +10,6 @@ function splitReasoning(text: string): { reasoning: string; rest: string } {
   const after = rIdx + "## reasoning".length;
   const cIdx = lower.indexOf("## conclusion", after);
   if (cIdx === -1) {
-    // Conclusion hasn't streamed in yet — reasoning runs to current end.
     return { reasoning: text.slice(after).trim(), rest: "" };
   }
   return {
@@ -17,6 +17,13 @@ function splitReasoning(text: string): { reasoning: string; rest: string } {
     rest: text.slice(cIdx + "## conclusion".length).trim(),
   };
 }
+
+const TOOL_BADGE: Record<string, "purple" | "teal" | "sky"> = {
+  search_health_kb: "purple",
+  query_health_graph: "teal",
+  search_duckduckgo: "sky",
+  search_brave: "sky",
+};
 
 /** Side drawer revealing everything about a worker — prompt, output, tools, usage. */
 export default function WorkerDrawer() {
@@ -33,25 +40,25 @@ export default function WorkerDrawer() {
 
   return (
     <div
-      className="fixed inset-0 z-40 flex justify-end bg-stone-900/30 backdrop-blur-sm"
+      className="fixed inset-0 z-40 flex justify-end bg-midnight-eclipse/70 backdrop-blur-sm"
       onClick={() => setExpanded(null)}
     >
       <aside
-        className="h-full w-full max-w-lg overflow-y-auto bg-stone-50 shadow-2xl"
+        className="h-full w-full max-w-lg overflow-y-auto border-l border-twilight-ink bg-starless-night shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 flex items-center justify-between border-b border-stone-200 bg-stone-50 px-5 py-4">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-twilight-ink bg-starless-night/95 px-5 py-4 backdrop-blur">
           <div>
-            <div className="text-[10px] uppercase tracking-wide text-stone-400">
+            <div className="text-[10px] uppercase tracking-[0.2em] text-fuchsia-flare">
               Worker
             </div>
-            <h2 className="font-serif text-xl text-stone-900">
+            <h2 className="text-heading-sm font-semibold text-frost">
               {ROLE_LABEL[role]}
             </h2>
           </div>
           <button
             onClick={() => setExpanded(null)}
-            className="rounded-md px-2 py-1 text-sm text-stone-500 hover:bg-stone-200 hover:text-stone-800"
+            className="rounded-default p-1.5 text-slate-gray hover:bg-frost/5 hover:text-frost"
             aria-label="Close"
           >
             ✕
@@ -60,90 +67,70 @@ export default function WorkerDrawer() {
 
         <div className="space-y-6 px-5 py-5">
           <section>
-            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-gray">
               Status
             </h3>
-            <div className="mt-1.5 flex gap-4 font-mono text-xs text-stone-700">
+            <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1.5 font-mono text-[12px]">
               <span>
-                <span className="text-stone-400">state:</span>{" "}
-                {worker.status}
+                <span className="text-slate-gray">state:</span>{" "}
+                <span className="text-frost">{worker.status}</span>
               </span>
               <span>
-                <span className="text-stone-400">tokens:</span>{" "}
-                {tokens.toLocaleString()}{" "}
-                <span className="text-stone-400">
+                <span className="text-slate-gray">tokens:</span>{" "}
+                <span className="text-frost">{tokens.toLocaleString()}</span>{" "}
+                <span className="text-slate-gray">
                   ({worker.promptTokens.toLocaleString()} in /{" "}
                   {worker.completionTokens.toLocaleString()} out)
                 </span>
               </span>
               <span>
-                <span className="text-stone-400">cost:</span> $
-                {worker.cost.toFixed(4)}
+                <span className="text-slate-gray">cost:</span>{" "}
+                <span className="text-frost">${worker.cost.toFixed(4)}</span>
               </span>
             </div>
           </section>
 
           <section>
-            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-gray">
               System prompt
             </h3>
-            <pre className="mt-1.5 whitespace-pre-wrap rounded-md border border-stone-200 bg-white p-3 font-mono text-[11px] leading-snug text-stone-700">
+            <pre className="mt-2 whitespace-pre-wrap rounded-default border border-twilight-ink bg-midnight-eclipse p-3 font-mono text-[11px] leading-snug text-ghostly-gray">
               {prompt}
             </pre>
           </section>
 
           {worker.toolCalls.length > 0 && (
             <section>
-              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">
+              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-gray">
                 Tool calls ({worker.toolCalls.length})
               </h3>
-              <ol className="mt-1.5 space-y-2">
+              <ol className="mt-2 space-y-2">
                 {worker.toolCalls.map((tc, i) => {
-                  const isKB = tc.name === "search_health_kb";
-                  const isGraph = tc.name === "query_health_graph";
-                  const style = isGraph
-                    ? "border-teal-200 bg-teal-50 text-teal-900"
-                    : isKB
-                      ? "border-violet-200 bg-violet-50 text-violet-900"
-                      : "border-sky-200 bg-sky-50 text-sky-900";
-                  const labelColor = isGraph
-                    ? "text-teal-600"
-                    : isKB
-                      ? "text-violet-600"
-                      : "text-sky-600";
-                  const queryColor = isGraph
-                    ? "text-teal-800"
-                    : isKB
-                      ? "text-violet-800"
-                      : "text-sky-800";
-                  const icon = isGraph ? "🕸️ " : isKB ? "📚 " : "🌐 ";
-
+                  const tone = TOOL_BADGE[tc.name] ?? "neutral";
                   return (
                     <li
                       key={i}
-                      className={`rounded-md border px-3 py-2 font-mono text-[11px] ${style}`}
+                      className="rounded-default border border-twilight-ink bg-midnight-eclipse px-3 py-2 font-mono text-[11px]"
                     >
-                      <div>
-                        <span className={labelColor}>
-                          {icon}
-                          {tc.name}
+                      <div className="flex items-center gap-2">
+                        <Badge tone={tone}>{tc.name}</Badge>
+                        <span className="text-ghostly-gray/70">
+                          "{tc.query}"
                         </span>
-                        (
-                        <span className={queryColor}>"{tc.query}"</span>)
                       </div>
                       {tc.sources && tc.sources.length > 0 && (
-                        <ul className="mt-1.5 space-y-0.5 border-l-2 border-violet-300 pl-2">
+                        <ul className="mt-1.5 space-y-0.5 border-l-2 border-magenta-burst/40 pl-2">
                           {tc.sources.map((s, j) => (
                             <li key={j} className="text-[10px]">
                               <a
                                 href={s.url}
                                 target="_blank"
                                 rel="noreferrer noopener"
-                                className="text-violet-700 underline hover:text-violet-900"
+                                className="text-magenta-burst underline-offset-2 hover:underline"
                               >
                                 {s.title || s.url}
                               </a>{" "}
-                              <span className="text-violet-500">
+                              <span className="text-slate-gray">
                                 ({s.score.toFixed(3)})
                               </span>
                             </li>
@@ -151,14 +138,17 @@ export default function WorkerDrawer() {
                         </ul>
                       )}
                       {tc.entities && tc.entities.length > 0 && (
-                        <ul className="mt-1.5 space-y-0.5 border-l-2 border-teal-300 pl-2">
+                        <ul className="mt-1.5 space-y-0.5 border-l-2 border-teal-glow/40 pl-2">
                           {tc.entities.map((ent, j) => (
-                            <li key={j} className="text-[10px] text-teal-800">
-                              <span className="font-semibold text-teal-900">
+                            <li
+                              key={j}
+                              className="text-[10px] text-ghostly-gray"
+                            >
+                              <span className="font-semibold text-teal-glow">
                                 {ent.name}
                               </span>
-                              <span className="text-teal-500"> · {ent.type}</span>{" "}
-                              <span className="text-teal-500">
+                              <span className="text-slate-gray"> · {ent.type}</span>{" "}
+                              <span className="text-slate-gray">
                                 ({ent.edge_count} edges · {ent.score.toFixed(3)})
                               </span>
                             </li>
@@ -174,20 +164,20 @@ export default function WorkerDrawer() {
 
           {reasoning && (
             <section>
-              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-violet-700">
-                💭 Reasoning trace
+              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-fuchsia-flare">
+                Reasoning trace
               </h3>
-              <pre className="mt-1.5 whitespace-pre-wrap rounded-md border border-violet-200 bg-violet-50 p-3 font-mono text-[11px] leading-snug text-violet-900">
+              <pre className="mt-2 whitespace-pre-wrap rounded-default border border-fuchsia-flare/30 bg-fuchsia-flare/5 p-3 font-mono text-[11px] leading-snug text-ghostly-gray">
                 {reasoning}
               </pre>
             </section>
           )}
 
           <section>
-            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-gray">
               {reasoning ? "Conclusion" : "Streamed output"}
             </h3>
-            <pre className="mt-1.5 max-h-[50vh] overflow-y-auto whitespace-pre-wrap rounded-md border border-stone-200 bg-white p-3 font-mono text-[11px] leading-snug text-stone-700">
+            <pre className="mt-2 max-h-[50vh] overflow-y-auto whitespace-pre-wrap rounded-default border border-twilight-ink bg-midnight-eclipse p-3 font-mono text-[11px] leading-snug text-ghostly-gray">
               {(reasoning ? rest : worker.text) || "(nothing streamed yet)"}
             </pre>
           </section>

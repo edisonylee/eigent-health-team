@@ -38,23 +38,26 @@ export default function Layout() {
     status !== undefined && status.has_usable_backend === false;
 
   return (
-    <div className="min-h-screen bg-stone-100">
-      <header className="border-b border-stone-200 bg-white">
+    <div className="min-h-screen bg-midnight-eclipse text-frost">
+      <header className="sticky top-0 z-30 border-b border-twilight-ink bg-midnight-eclipse/85 backdrop-blur-md">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-6 py-3">
-          <Link to="/" className="font-serif text-base text-stone-900">
+          <Link
+            to="/"
+            className="text-[15px] font-semibold tracking-tight text-frost"
+          >
             HealthOS
           </Link>
-          <nav className="flex items-center gap-1 text-sm">
+          <nav className="flex items-center gap-1 text-[13px]">
             {nav.map((n) => (
               <NavLink
                 key={n.to}
                 to={n.to}
                 end={n.to === "/"}
                 className={({ isActive }) =>
-                  "rounded-md px-3 py-1.5 transition-colors " +
+                  "rounded-default px-3 py-1.5 transition-colors " +
                   (isActive
-                    ? "bg-stone-900 text-white"
-                    : "text-stone-600 hover:bg-stone-100 hover:text-stone-900")
+                    ? "bg-frost text-midnight-eclipse"
+                    : "text-slate-gray hover:bg-frost/5 hover:text-frost")
                 }
               >
                 {n.label}
@@ -63,16 +66,18 @@ export default function Layout() {
             <button
               type="button"
               onClick={() => setPaletteOpen(true)}
-              className="ml-2 rounded-md border border-stone-200 px-2 py-1 font-mono text-[11px] text-stone-500 hover:bg-stone-50"
+              className="ml-2 rounded-default border border-twilight-ink bg-frost/5 px-2 py-1 font-mono text-[11px] text-slate-gray hover:bg-frost/10 hover:text-frost"
               title="Command palette"
             >
               ⌘K
             </button>
           </nav>
           {status && (
-            <div className="text-right font-mono text-[11px] text-stone-500">
-              <div className="uppercase tracking-wide text-stone-400">backend</div>
-              <div className="text-stone-700">
+            <div className="text-right font-mono text-[11px] text-slate-gray">
+              <div className="uppercase tracking-wider text-pewter">
+                backend
+              </div>
+              <div className="text-frost">
                 {status.backend} · {status.model}
               </div>
             </div>

@@ -3,6 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { api, CheckIn as CheckInRow } from "../lib/api";
 import { useAddCheckIn, useCheckIns, useRuns } from "../lib/queries";
 import { useStore } from "../store";
+import { Button } from "../components/ui/Button";
+import { Card } from "../components/ui/Card";
+import { Textarea } from "../components/ui/Input";
+import { cn } from "../lib/cn";
 
 const SCALE = [1, 2, 3, 4, 5];
 
@@ -25,6 +29,25 @@ export default function CheckIn() {
   const recentSeven = (checkIns || []).slice(0, 7);
   const canSynthesize = lastDoneRun && recentSeven.length > 0;
 
+  const submit = async () => {
+    setError("");
+    try {
+      await add.mutateAsync({
+        password,
+        energy: energy ?? undefined,
+        sleep_hours: sleep ? parseFloat(sleep) : undefined,
+        mood: mood ?? undefined,
+        adherence_notes: notes || undefined,
+      });
+      setEnergy(null);
+      setSleep("");
+      setMood(null);
+      setNotes("");
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
   const runWeeklySynthesis = async () => {
     if (!lastDoneRun) return;
     setError("");
@@ -46,7 +69,6 @@ export default function CheckIn() {
         throw new Error(body.detail || `HTTP ${followUp.status}`);
       }
       const { task_id } = await followUp.json();
-      // Prime the store so the home page picks up the new run + streams.
       setTaskId(task_id);
       startFollowUp();
       navigate("/");
@@ -57,35 +79,18 @@ export default function CheckIn() {
     }
   };
 
-  const submit = async () => {
-    setError("");
-    try {
-      await add.mutateAsync({
-        password,
-        energy: energy ?? undefined,
-        sleep_hours: sleep ? parseFloat(sleep) : undefined,
-        mood: mood ?? undefined,
-        adherence_notes: notes || undefined,
-      });
-      setEnergy(null);
-      setSleep("");
-      setMood(null);
-      setNotes("");
-    } catch (e) {
-      setError(String(e));
-    }
-  };
-
   return (
     <div className="px-6 py-8">
       <div className="mx-auto max-w-5xl">
-        <h1 className="mb-2 font-serif text-2xl text-stone-900">Daily check-in</h1>
-        <p className="mb-5 text-sm text-stone-500">
+        <h1 className="mb-2 text-heading font-semibold text-frost">
+          Daily check-in
+        </h1>
+        <p className="mb-6 text-body text-slate-gray">
           Log how you feel today. The Workforce can synthesize the last week
           into a follow-up plan adjustment.
         </p>
 
-        <div className="space-y-5 rounded-lg border border-stone-200 bg-white p-5">
+        <Card surface="starless" className="space-y-5">
           <Scale
             label="Energy"
             value={energy}
@@ -98,7 +103,7 @@ export default function CheckIn() {
             setValue={setMood}
             hint="1 = low, 5 = bright"
           />
-          <label className="block text-xs text-stone-600">
+          <label className="block text-[12px] text-slate-gray">
             Sleep (hours)
             <input
               type="number"
@@ -107,89 +112,91 @@ export default function CheckIn() {
               max={16}
               value={sleep}
               onChange={(e) => setSleep(e.target.value)}
-              className="mt-1 w-32 rounded-md border border-stone-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-stone-500"
+              className="mt-1 w-32 rounded-default bg-frost/5 px-3 py-1.5 text-body text-frost outline-none focus:shadow-subtle-1"
             />
           </label>
-          <label className="block text-xs text-stone-600">
+          <label className="block text-[12px] text-slate-gray">
             Adherence notes
-            <textarea
+            <Textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
               placeholder="What stuck? What didn't? Any new symptoms?"
-              className="mt-1 w-full resize-y rounded-md border border-stone-300 bg-white px-3 py-2 text-sm outline-none focus:border-stone-500"
+              className="mt-1"
             />
           </label>
-          <button
-            type="button"
-            onClick={submit}
-            disabled={add.isPending}
-            className="rounded-md bg-stone-900 px-4 py-2 text-sm text-white hover:bg-stone-700 disabled:opacity-40"
-          >
+          <Button type="button" onClick={submit} disabled={add.isPending}>
             {add.isPending ? "Saving…" : "Log check-in"}
-          </button>
+          </Button>
           {error && (
-            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            <div className="rounded-default border border-crimson-red/30 bg-crimson-red/10 px-3 py-2 text-[12px] text-crimson-red">
               {error}
             </div>
           )}
-        </div>
+        </Card>
 
-        <div className="mt-8 rounded-lg border border-stone-200 bg-white p-5">
-          <h2 className="font-serif text-lg text-stone-900">
+        <Card surface="starless" className="mt-6">
+          <h2 className="text-subheading font-medium text-frost">
             Weekly synthesis
           </h2>
-          <p className="mt-1 text-sm text-stone-500">
+          <p className="mt-1 text-body text-slate-gray">
             Feed the last seven check-ins into a follow-up of your most recent
             plan. The Safety Reviewer + Plan Writer re-run with the new context
             (≈1/10th of a full run cost).
           </p>
           {!lastDoneRun && (
-            <p className="mt-2 text-xs text-amber-700">
+            <p className="mt-2 text-[12px] text-goldenrod">
               You need a completed plan first. Run one from{" "}
-              <code className="rounded bg-amber-50 px-1">/</code>.
+              <code className="rounded bg-frost/10 px-1 text-frost">/</code>.
             </p>
           )}
           {lastDoneRun && recentSeven.length === 0 && (
-            <p className="mt-2 text-xs text-amber-700">
+            <p className="mt-2 text-[12px] text-goldenrod">
               Log at least one check-in before running the synthesis.
             </p>
           )}
-          <button
+          <Button
+            variant="ghost"
             type="button"
             onClick={runWeeklySynthesis}
             disabled={!canSynthesize || synthLoading}
-            className="mt-3 rounded-md border border-stone-300 bg-white px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-40"
+            className="mt-3"
           >
             {synthLoading ? "Starting…" : "Run weekly synthesis"}
-          </button>
-        </div>
+          </Button>
+        </Card>
 
-        <h2 className="mb-2 mt-8 font-serif text-lg text-stone-900">
+        <h2 className="mt-8 text-subheading font-medium text-frost">
           Recent check-ins
         </h2>
-        <div className="overflow-hidden rounded-lg border border-stone-200 bg-white">
+        <div className="mt-2 overflow-hidden rounded-card border border-twilight-ink bg-starless-night">
           {checkIns && checkIns.length > 0 ? (
-            <table className="w-full text-sm">
-              <thead className="bg-stone-50 text-[10px] uppercase tracking-wider text-stone-500">
+            <table className="w-full text-body">
+              <thead className="bg-midnight-eclipse/60 text-[10px] uppercase tracking-[0.2em] text-pewter">
                 <tr>
-                  <th className="px-3 py-2 text-left">Day</th>
-                  <th className="px-3 py-2 text-right">Energy</th>
-                  <th className="px-3 py-2 text-right">Sleep</th>
-                  <th className="px-3 py-2 text-right">Mood</th>
-                  <th className="px-3 py-2 text-left">Notes</th>
+                  <th className="px-4 py-2 text-left">Day</th>
+                  <th className="px-4 py-2 text-right">Energy</th>
+                  <th className="px-4 py-2 text-right">Sleep</th>
+                  <th className="px-4 py-2 text-right">Mood</th>
+                  <th className="px-4 py-2 text-left">Notes</th>
                 </tr>
               </thead>
               <tbody>
                 {checkIns.map((c) => (
-                  <tr key={c.id} className="border-t border-stone-100">
-                    <td className="px-3 py-2 font-mono text-xs text-stone-700">
+                  <tr key={c.id} className="border-t border-twilight-ink">
+                    <td className="px-4 py-2 font-mono text-[12px] text-ghostly-gray">
                       {c.day}
                     </td>
-                    <td className="px-3 py-2 text-right">{c.energy ?? "—"}</td>
-                    <td className="px-3 py-2 text-right">{c.sleep_hours ?? "—"}</td>
-                    <td className="px-3 py-2 text-right">{c.mood ?? "—"}</td>
-                    <td className="px-3 py-2 text-xs text-stone-600">
+                    <td className="px-4 py-2 text-right text-frost">
+                      {c.energy ?? "—"}
+                    </td>
+                    <td className="px-4 py-2 text-right text-frost">
+                      {c.sleep_hours ?? "—"}
+                    </td>
+                    <td className="px-4 py-2 text-right text-frost">
+                      {c.mood ?? "—"}
+                    </td>
+                    <td className="px-4 py-2 text-[12px] text-slate-gray">
                       {c.adherence_notes || ""}
                     </td>
                   </tr>
@@ -197,7 +204,7 @@ export default function CheckIn() {
               </tbody>
             </table>
           ) : (
-            <div className="px-3 py-5 text-center text-xs text-stone-400">
+            <div className="px-4 py-6 text-center text-[12px] text-pewter">
               No check-ins yet.
             </div>
           )}
@@ -208,7 +215,6 @@ export default function CheckIn() {
 }
 
 function buildSynthesisNote(checkIns: CheckInRow[]): string {
-  // Newest-first → oldest-first so the trend reads naturally to the LLM.
   const rows = [...checkIns].reverse();
   const days = rows.length;
   const avg = (k: "energy" | "mood") => {
@@ -261,22 +267,22 @@ function Scale({
 }) {
   return (
     <div>
-      <div className="flex items-baseline justify-between text-xs text-stone-600">
-        <span>{label}</span>
-        <span className="text-stone-400">{hint}</span>
+      <div className="flex items-baseline justify-between text-[12px]">
+        <span className="text-frost">{label}</span>
+        <span className="text-pewter">{hint}</span>
       </div>
-      <div className="mt-1 flex gap-1">
+      <div className="mt-1.5 flex gap-1.5">
         {SCALE.map((n) => (
           <button
             key={n}
             type="button"
             onClick={() => setValue(n)}
-            className={
-              "h-10 w-10 rounded-md border text-sm transition-colors " +
-              (value === n
-                ? "border-stone-900 bg-stone-900 text-white"
-                : "border-stone-300 bg-white text-stone-700 hover:bg-stone-50")
-            }
+            className={cn(
+              "h-10 w-10 rounded-default border text-body transition-colors",
+              value === n
+                ? "border-electric-blue bg-electric-blue text-frost shadow-glow"
+                : "border-twilight-ink bg-frost/5 text-ghostly-gray hover:bg-frost/10",
+            )}
           >
             {n}
           </button>

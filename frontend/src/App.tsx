@@ -6,6 +6,9 @@ import BiomarkerTable from "./components/BiomarkerTable";
 import MemoPanel from "./components/MemoPanel";
 import TaskGraph from "./components/TaskGraph";
 import WorkerDrawer from "./components/WorkerDrawer";
+import { Button } from "./components/ui/Button";
+import { Card } from "./components/ui/Card";
+import { Input, Textarea } from "./components/ui/Input";
 import { streamRun } from "./lib/sse";
 import { selectTotalCost, useStore } from "./store";
 
@@ -36,7 +39,6 @@ export default function App() {
   const [labText, setLabText] = useState("");
   const [showLabPaste, setShowLabPaste] = useState(false);
 
-  // Fetch the system prompts once so the expand-drawer can render them.
   useEffect(() => {
     if (prompts) return;
     fetch("/api/prompts")
@@ -45,10 +47,6 @@ export default function App() {
       .catch(() => {});
   }, [prompts, setPrompts]);
 
-  // Attach the SSE stream when this route mounts mid-run — happens when
-  // another route (e.g. /check-in weekly synthesis) primed taskId+phase
-  // before navigating back here. Without this, the run streams server-side
-  // but the home page never picks it up.
   useEffect(() => {
     if (phase !== "running" || !taskId || esRef.current) return;
     esRef.current = streamRun(taskId, (ev) => {
@@ -62,7 +60,6 @@ export default function App() {
       esRef.current?.close();
       esRef.current = null;
     };
-    // Only run on mount + when taskId/phase first becomes runnable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskId, phase]);
 
@@ -77,8 +74,7 @@ export default function App() {
         body: JSON.stringify({ request_id, answer, password }),
       });
     } catch {
-      // Swallow — if the answer POST fails the agent will time out and
-      // proceed with its default ("use your best judgment").
+      /* timeout falls back to "use your best judgment" */
     }
   };
 
@@ -108,7 +104,6 @@ export default function App() {
     const fd = new FormData();
     fd.set("file", file);
     await uploadLabs(fd);
-    // reset so the same file can be re-picked
     e.target.value = "";
   };
 
@@ -186,61 +181,64 @@ export default function App() {
   return (
     <div className="px-6 py-8">
       <div className="mx-auto max-w-5xl">
-        <header className="mb-4 flex items-end justify-between">
-          <div>
-            <h1 className="font-serif text-2xl text-stone-900">
-              Personalized Health Team
-            </h1>
-            <p className="text-sm text-stone-500">
-              A four-agent CAMEL Workforce — research, assessment, safety review, plan.
-            </p>
+        {/* Hero — Nebula Horizon gradient banner per the design system */}
+        <Card surface="gradient-nebula" className="relative mb-6 overflow-hidden">
+          <div className="text-[10px] uppercase tracking-[0.2em] text-frost/80">
+            Personalized Health Team
           </div>
+          <h1 className="mt-2 text-heading font-semibold text-frost">
+            Four agents. One plan.
+          </h1>
+          <p className="mt-2 max-w-xl text-body text-frost/80">
+            A CAMEL Workforce — research, assessment, safety review, plan — over a curated knowledge graph and your personal context.
+          </p>
           {showCost && (
-            <div className="text-right font-mono text-xs text-stone-500">
-              <div className="uppercase tracking-wide text-[10px] text-stone-400">
+            <div className="absolute right-6 top-6 text-right font-mono">
+              <div className="text-[10px] uppercase tracking-wider text-frost/60">
                 cost so far
               </div>
-              <div className="text-lg text-stone-800">
+              <div className="text-subheading text-frost">
                 ${totalCost.toFixed(4)}
               </div>
             </div>
           )}
-        </header>
+        </Card>
 
-        <div className="mb-5 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          Educational information only — not medical advice, and not a substitute
-          for a qualified healthcare professional. Seek prompt care for any
-          concerning symptoms.
-        </div>
+        <Card surface="starless" shape="default" className="mb-5 border border-goldenrod/30 bg-goldenrod/10">
+          <p className="text-[12px] leading-relaxed text-goldenrod">
+            Educational information only — not medical advice, and not a substitute
+            for a qualified healthcare professional. Seek prompt care for any concerning symptoms.
+          </p>
+        </Card>
 
         <div className="mb-5 flex gap-2">
-          <input
+          <Input
             value={idea}
             onChange={(e) => setIdea(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && run()}
             placeholder="Describe yourself — age, lifestyle, goals, any concerns. e.g. 34, desk job, want more energy and to lose 10 lbs, mild back pain"
             disabled={busy}
-            className="flex-1 rounded-md border border-stone-300 bg-white px-3 py-2 text-sm outline-none focus:border-stone-500 disabled:bg-stone-50"
           />
-          <button
+          <Button
             onClick={run}
             disabled={busy || !idea.trim()}
-            className="rounded-md bg-stone-900 px-6 py-2 text-sm text-white hover:bg-stone-700 disabled:opacity-40"
+            size="lg"
           >
             {phase === "running" ? "Running…" : "Run"}
-          </button>
+          </Button>
         </div>
 
-        <div className="mb-5 flex flex-wrap items-center gap-3 text-xs text-stone-600">
-          <span className="text-stone-500">Optional — attach a lab report:</span>
-          <button
+        <div className="mb-5 flex flex-wrap items-center gap-3 text-[12px] text-slate-gray">
+          <span>Optional — attach a lab report:</span>
+          <Button
+            variant="ghost"
+            size="sm"
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={busy || labLoading}
-            className="rounded-md border border-stone-300 bg-white px-3 py-1.5 hover:bg-stone-50 disabled:opacity-40"
           >
-            📄 Upload PDF
-          </button>
+            Upload PDF
+          </Button>
           <input
             ref={fileInputRef}
             type="file"
@@ -248,65 +246,65 @@ export default function App() {
             onChange={onPickFile}
             className="hidden"
           />
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             type="button"
             onClick={() => setShowLabPaste((v) => !v)}
             disabled={busy || labLoading}
-            className="rounded-md border border-stone-300 bg-white px-3 py-1.5 hover:bg-stone-50 disabled:opacity-40"
           >
-            📋 Paste text
-          </button>
-          {labLoading && <span className="text-stone-500">parsing…</span>}
-          {labError && (
-            <span className="text-red-600">labs: {labError}</span>
-          )}
+            Paste text
+          </Button>
+          {labLoading && <span>parsing…</span>}
+          {labError && <span className="text-crimson-red">labs: {labError}</span>}
         </div>
 
         {showLabPaste && (
-          <div className="mb-5 rounded-md border border-stone-200 bg-white p-3">
-            <textarea
+          <Card surface="starless" shape="default" className="mb-5">
+            <Textarea
               value={labText}
               onChange={(e) => setLabText(e.target.value)}
               placeholder="Paste lab values here. e.g.&#10;Vitamin D, 25-Hydroxy   18  ng/mL  (ref 30-100)  LOW&#10;Hemoglobin A1c   5.9  %   (ref <5.7)  HIGH"
               rows={6}
-              className="w-full resize-y rounded border border-stone-200 bg-stone-50 px-3 py-2 font-mono text-[11px] outline-none focus:border-stone-400"
+              className="font-mono text-[11px]"
             />
-            <div className="mt-2 flex justify-end gap-2 text-xs">
-              <button
+            <div className="mt-2 flex justify-end gap-2 text-[12px]">
+              <Button
+                variant="subtle"
+                size="sm"
                 type="button"
                 onClick={() => {
                   setLabText("");
                   setShowLabPaste(false);
                 }}
-                className="text-stone-500 hover:text-stone-800"
               >
                 cancel
-              </button>
-              <button
+              </Button>
+              <Button
+                size="sm"
                 type="button"
                 onClick={onSubmitLabText}
                 disabled={!labText.trim() || labLoading}
-                className="rounded-md bg-stone-900 px-3 py-1.5 text-white hover:bg-stone-700 disabled:opacity-40"
               >
                 Parse
-              </button>
+              </Button>
             </div>
-          </div>
+          </Card>
         )}
 
         <BiomarkerTable />
 
         {phase === "error" && (
-          <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            {error}
-          </div>
+          <Card surface="starless" shape="default" className="mb-4 border border-crimson-red/40 bg-crimson-red/10 text-crimson-red">
+            <p className="text-body">{error}</p>
+          </Card>
         )}
 
         <TaskGraph />
 
         {phase === "running" && eventLog.length > 0 && (
           <details className="mt-6" open>
-            <summary className="cursor-pointer text-[11px] uppercase tracking-wider text-stone-500 hover:text-stone-800">
+            <summary className="cursor-pointer text-[11px] uppercase tracking-wider text-slate-gray hover:text-frost">
               live timeline · {eventLog.length} event
               {eventLog.length === 1 ? "" : "s"}
             </summary>
@@ -324,14 +322,14 @@ export default function App() {
           <div className="mt-3 text-center">
             <Link
               to={`/runs/${taskId}/timeline`}
-              className="inline-block rounded-md border border-stone-300 px-3 py-1.5 text-xs text-stone-700 hover:bg-stone-50"
+              className="inline-block rounded-pill border border-twilight-ink bg-frost/5 px-3 py-1.5 text-[12px] text-ghostly-gray hover:bg-frost/10 hover:text-frost"
             >
               View full timeline →
             </Link>
           </div>
         )}
 
-        <p className="mt-3 text-center text-[11px] text-stone-400">
+        <p className="mt-3 text-center text-[11px] text-pewter">
           Click any worker node to see its system prompt, streamed output, tool
           calls, and usage.
         </p>

@@ -1,17 +1,19 @@
 import { memo, useEffect, useRef } from "react";
 import { Handle, NodeProps, Position } from "reactflow";
 import { ROLE_LABEL, Role, Status, useStore } from "../store";
+import { Badge } from "./ui/Badge";
 
-const NODE_STYLE: Record<Status, string> = {
-  pending: "border-stone-300 bg-stone-50",
-  running: "border-amber-400 bg-amber-50",
-  done: "border-emerald-400 bg-emerald-50",
+const SHELL: Record<Status, string> = {
+  pending: "border-twilight-ink bg-starless-night",
+  running:
+    "border-electric-blue/70 bg-starless-night shadow-glow animate-pulse-glow",
+  done: "border-vivid-green/70 bg-starless-night shadow-glow-green",
 };
 
-const BADGE_STYLE: Record<Status, string> = {
-  pending: "bg-stone-200 text-stone-600",
-  running: "bg-amber-200 text-amber-800",
-  done: "bg-emerald-200 text-emerald-800",
+const STATUS_LABEL: Record<Status, string> = {
+  pending: "idle",
+  running: "● running",
+  done: "done",
 };
 
 interface WorkerNodeData {
@@ -20,6 +22,7 @@ interface WorkerNodeData {
   text: string;
   promptTokens: number;
   completionTokens: number;
+  cachedTokens: number;
   cost: number;
   kbCount: number;
   webCount: number;
@@ -39,67 +42,75 @@ function WorkerNodeImpl({ data }: NodeProps<WorkerNodeData>) {
   const tokens = data.promptTokens + data.completionTokens;
   const hasUsage = tokens > 0;
   const hasReasoning = data.text.toLowerCase().includes("## reasoning");
+  const cachePct =
+    data.promptTokens > 0
+      ? Math.round((data.cachedTokens / data.promptTokens) * 100)
+      : 0;
+  const hasCache = data.cachedTokens > 0;
 
   return (
     <div
       onClick={() => setExpanded(data.role)}
-      className={`w-52 cursor-pointer rounded-lg border-2 px-3 py-2 shadow-sm transition-colors hover:shadow-md ${NODE_STYLE[data.status]}`}
+      className={`w-56 cursor-pointer rounded-default border px-3 py-2.5 transition-all hover:shadow-subtle ${SHELL[data.status]}`}
     >
-      <Handle type="target" position={Position.Top} />
+      <Handle type="target" position={Position.Top} className="!bg-twilight-ink" />
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-stone-800">
+        <span className="text-[13px] font-medium text-frost">
           {ROLE_LABEL[data.role]}
         </span>
-        <span
-          className={`rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${BADGE_STYLE[data.status]}`}
+        <Badge
+          tone={
+            data.status === "running"
+              ? "blue"
+              : data.status === "done"
+                ? "green"
+                : "neutral"
+          }
         >
-          {data.status === "running" ? "● running" : data.status}
-        </span>
+          {STATUS_LABEL[data.status]}
+        </Badge>
       </div>
 
       {(data.kbCount > 0 ||
         data.webCount > 0 ||
         data.graphCount > 0 ||
-        hasReasoning) && (
-        <div className="mt-1 flex flex-wrap gap-1">
+        hasReasoning ||
+        hasCache) && (
+        <div className="mt-1.5 flex flex-wrap gap-1">
           {data.graphCount > 0 && (
-            <span className="inline-flex items-center gap-1 rounded bg-teal-100 px-1.5 py-0.5 text-[10px] text-teal-800">
-              🕸️ {data.graphCount} graph
-            </span>
+            <Badge tone="teal">graph · {data.graphCount}</Badge>
           )}
           {data.kbCount > 0 && (
-            <span className="inline-flex items-center gap-1 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] text-violet-800">
-              📚 {data.kbCount} KB
-            </span>
+            <Badge tone="purple">KB · {data.kbCount}</Badge>
           )}
-          {data.webCount > 0 && (
-            <span className="inline-flex items-center gap-1 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] text-sky-800">
-              🌐 {data.webCount} web
-            </span>
-          )}
-          {hasReasoning && (
-            <span className="inline-flex items-center gap-1 rounded bg-fuchsia-100 px-1.5 py-0.5 text-[10px] text-fuchsia-800">
-              💭 reasoning
-            </span>
+          {data.webCount > 0 && <Badge tone="sky">web · {data.webCount}</Badge>}
+          {hasReasoning && <Badge tone="fuchsia">reasoning</Badge>}
+          {hasCache && (
+            <Badge
+              tone="green"
+              title={`${data.cachedTokens.toLocaleString()} of ${data.promptTokens.toLocaleString()} input tokens served from cache (50% off)`}
+            >
+              {cachePct}% cached
+            </Badge>
           )}
         </div>
       )}
 
       <div
         ref={scrollRef}
-        className="mt-1.5 h-14 overflow-y-auto whitespace-pre-wrap font-mono text-[10px] leading-snug text-stone-500"
+        className="mt-2 h-14 overflow-y-auto whitespace-pre-wrap font-mono text-[10px] leading-snug text-ghostly-gray/70"
       >
         {data.text || (data.status === "pending" ? "waiting…" : "")}
       </div>
 
-      <div className="mt-1 flex items-center justify-between border-t border-stone-200 pt-1 font-mono text-[10px] text-stone-500">
+      <div className="mt-1.5 flex items-center justify-between border-t border-twilight-ink pt-1.5 font-mono text-[10px] text-slate-gray">
         <span>{hasUsage ? `${tokens.toLocaleString()} tok` : "—"}</span>
-        <span className="text-stone-700">
+        <span className="text-frost">
           {hasUsage ? `$${data.cost.toFixed(4)}` : ""}
         </span>
       </div>
 
-      <Handle type="source" position={Position.Bottom} />
+      <Handle type="source" position={Position.Bottom} className="!bg-twilight-ink" />
     </div>
   );
 }

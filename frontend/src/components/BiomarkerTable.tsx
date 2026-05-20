@@ -1,17 +1,18 @@
 import { useStore } from "../store";
+import { Badge } from "./ui/Badge";
 
-const FLAG_STYLE: Record<string, string> = {
-  low: "bg-amber-50 border-amber-200 text-amber-900",
-  high: "bg-amber-50 border-amber-200 text-amber-900",
-  normal: "bg-emerald-50 border-emerald-200 text-emerald-900",
-  unknown: "bg-stone-50 border-stone-200 text-stone-700",
+const FLAG_TONE: Record<string, "neutral" | "gold" | "green"> = {
+  low: "gold",
+  high: "gold",
+  normal: "green",
+  unknown: "neutral",
 };
 
-const FLAG_BADGE: Record<string, string> = {
-  low: "bg-amber-200 text-amber-900",
-  high: "bg-amber-200 text-amber-900",
-  normal: "bg-emerald-200 text-emerald-900",
-  unknown: "bg-stone-200 text-stone-700",
+const FLAG_BORDER: Record<string, string> = {
+  low: "border-goldenrod/40",
+  high: "border-goldenrod/40",
+  normal: "border-vivid-green/40",
+  unknown: "border-twilight-ink",
 };
 
 /** Persistent row of parsed biomarkers — visible while the agents work. */
@@ -24,12 +25,12 @@ export default function BiomarkerTable() {
   const meta = [panel.lab_name, panel.date].filter(Boolean).join(" · ");
 
   return (
-    <div className="mb-5 rounded-xl border border-stone-200 bg-white p-4">
-      <div className="mb-2 flex items-baseline justify-between">
+    <div className="mb-5 rounded-card border border-twilight-ink bg-starless-night p-5">
+      <div className="mb-3 flex items-baseline justify-between">
         <div>
-          <h3 className="font-serif text-base text-stone-900">Lab values</h3>
+          <h3 className="text-subheading font-medium text-frost">Lab values</h3>
           {meta && (
-            <p className="font-mono text-[10px] uppercase tracking-wider text-stone-400">
+            <p className="font-mono text-[10px] uppercase tracking-wider text-slate-gray">
               {meta}
             </p>
           )}
@@ -37,45 +38,39 @@ export default function BiomarkerTable() {
         <button
           type="button"
           onClick={() => setLabPanel(null)}
-          className="text-[11px] text-stone-500 hover:text-stone-800"
+          className="text-[11px] text-slate-gray hover:text-frost"
         >
           remove
         </button>
       </div>
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-4">
-        {panel.biomarkers.map((b, i) => {
-          const style = FLAG_STYLE[b.flag] || FLAG_STYLE.unknown;
-          const badge = FLAG_BADGE[b.flag] || FLAG_BADGE.unknown;
-          return (
-            <div
-              key={i}
-              className={`rounded-md border px-2.5 py-1.5 ${style}`}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="truncate text-[11px] font-medium text-stone-800">
-                  {b.name}
-                </span>
-                {b.flag !== "unknown" && (
-                  <span
-                    className={`rounded px-1 py-0.5 text-[9px] uppercase ${badge}`}
-                  >
-                    {b.flag}
-                  </span>
-                )}
-              </div>
-              <div className="mt-0.5 font-mono text-[12px] text-stone-900">
-                {b.value}
-                {b.unit ? <span className="ml-1 text-stone-500">{b.unit}</span> : null}
-              </div>
-              {b.reference_range && (
-                <div className="font-mono text-[9px] text-stone-400">
-                  ref {b.reference_range}
-                </div>
+        {panel.biomarkers.map((b, i) => (
+          <div
+            key={i}
+            className={`rounded-default border bg-midnight-eclipse px-3 py-2 ${FLAG_BORDER[b.flag] || FLAG_BORDER.unknown}`}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="truncate text-[11px] font-medium text-frost">
+                {b.name}
+              </span>
+              {b.flag !== "unknown" && (
+                <Badge tone={FLAG_TONE[b.flag] || "neutral"}>{b.flag}</Badge>
               )}
             </div>
-          );
-        })}
+            <div className="mt-1 font-mono text-[13px] text-frost">
+              {b.value}
+              {b.unit ? (
+                <span className="ml-1 text-slate-gray">{b.unit}</span>
+              ) : null}
+            </div>
+            {b.reference_range && (
+              <div className="font-mono text-[9px] text-slate-gray">
+                ref {b.reference_range}
+              </div>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );
