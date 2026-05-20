@@ -44,32 +44,29 @@ export default function CommandPalette({ open, onOpenChange, onNavigate }: Props
               No matches.
             </Command.Empty>
             <Command.Group heading="Navigate" className={groupHeadingCls}>
-              <Command.Item onSelect={() => onNavigate("/")} className={itemCls}>
-                Run a new plan
-              </Command.Item>
               <Command.Item
-                onSelect={() => onNavigate("/agents")}
+                onSelect={() => onNavigate("/today")}
                 className={itemCls}
               >
-                Open agent roster
+                Today · log check-in
               </Command.Item>
               <Command.Item
-                onSelect={() => onNavigate("/check-in")}
+                onSelect={() => onNavigate("/memory")}
                 className={itemCls}
               >
-                Daily check-in
+                Memory · about me, graph, sources
               </Command.Item>
               <Command.Item
-                onSelect={() => onNavigate("/memory-graph")}
+                onSelect={() => onNavigate("/plan")}
                 className={itemCls}
               >
-                Memory graph
+                Plan · latest + history
               </Command.Item>
               <Command.Item
-                onSelect={() => onNavigate("/evals")}
+                onSelect={() => onNavigate("/plan/new")}
                 className={itemCls}
               >
-                Evals dashboard
+                Start a new plan
               </Command.Item>
               <Command.Item
                 onSelect={() => onNavigate("/settings")}

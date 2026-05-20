@@ -48,6 +48,46 @@ async def entity_mentions(entity_id: int, limit: int = 50) -> dict:
     return data
 
 
+@router.get("/sources")
+async def sources(check_in_limit: int = 60, run_limit: int = 30) -> dict:
+    """Return the raw source documents that feed the memory graph.
+
+    Surfaced under the graph viz so the user can see exactly what got
+    extracted from — check-ins, run memos, the latest profile note,
+    and biomarkers. No LLM call; cheap.
+    """
+    from .. import db, profile_synthesis as ps
+
+    check_ins = await db.list_check_ins(limit=check_in_limit)
+    runs = await db.list_runs(limit=run_limit)
+    run_memos = [
+        {
+            "task_id": r["task_id"],
+            "idea": r.get("idea"),
+            "memo": r.get("memo"),
+            "started_at": r.get("started_at"),
+            "ended_at": r.get("ended_at"),
+            "status": r.get("status"),
+            "mode": r.get("mode") or "plan",
+        }
+        for r in runs
+        if (r.get("memo") or "").strip()
+    ]
+    profile = await db.get_profile()
+    synthesis_meta = ps.get_synthesis_meta_sync()
+    biomarkers = ps._recent_biomarkers_sync(limit=60)
+
+    return {
+        "check_ins": check_ins,
+        "run_memos": run_memos,
+        "profile": {
+            "notes": (profile or {}).get("notes"),
+            **synthesis_meta,
+        },
+        "biomarkers": biomarkers,
+    }
+
+
 @router.post("/reindex")
 async def reindex(req: ReindexRequest) -> dict:
     """Re-extract personal entities from existing SQLite data.

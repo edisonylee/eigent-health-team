@@ -76,6 +76,7 @@ ChatAgent._update_token_usage_tracker = _patched_update_tracker
 ChatAgent._build_request_usage_payload = _patched_build_usage_payload
 
 from src.agents import (
+    ASK_PROMPT,
     ASSESSOR_PROMPT,
     PLAN_PROMPT,
     RESEARCHER_PROMPT,
@@ -307,7 +308,16 @@ def _make_question_tool(
 
 
 def _mcp_graph_tool(emit: Callable[[RunEvent], None]) -> FunctionTool:
-    """Route query_health_graph through the health_kb MCP server."""
+    """Canonical-graph tool — calls src.graph_rag directly.
+
+    Originally routed through the health_kb MCP server, but the Python MCP
+    SDK's `ClientSession.call_tool` deadlocks when called from a task other
+    than the one that owns the stdio session (`MCPManager._loop` owns it,
+    `call_sync` dispatches from elsewhere → empty-message TimeoutError).
+    Same Chroma store, same shape of result, same emitted events — only the
+    transport changes. MCP startup still happens so Settings shows the
+    integration; we just don't need it in the hot path for in-process tools.
+    """
 
     def query_health_graph(query: str, k: int = 5) -> list[dict]:
         """query_health_graph — retrieves entities + 1-hop relationships.
@@ -319,10 +329,9 @@ def _mcp_graph_tool(emit: Callable[[RunEvent], None]) -> FunctionTool:
         Returns:
             A list of entity dicts with typed edges.
         """
-        result = get_manager().call_sync(
-            "health_kb", "query_health_graph", {"query": query, "k": k}
-        )
-        entities = _parse_mcp_result(result)
+        from src.graph_rag import search_health_graph
+
+        entities = [e.to_dict() for e in search_health_graph(query, k=k)]
         payload = [
             {
                 "id": e.get("id"),
@@ -347,8 +356,65 @@ def _mcp_graph_tool(emit: Callable[[RunEvent], None]) -> FunctionTool:
     return FunctionTool(query_health_graph)
 
 
+def _personal_graph_tool(emit: Callable[[RunEvent], None]) -> FunctionTool:
+    """Search the user's personal memory graph.
+
+    Distinct from `query_health_graph` (the canonical ontology). This tool
+    asks "what do we already know about THIS user re: <topic>?" by matching
+    against the `personal_entity` table — names extracted from their plans,
+    check-ins, labs, and profile — and returning recent mentions.
+
+    Researcher's expected workflow: query the personal graph first ("does
+    the user have a history with magnesium / migraines / their primary
+    doctor?"); fall back to `query_health_graph` + `search_health_kb` for
+    population-level guidance.
+    """
+
+    def query_personal_graph(query: str, k: int = 8) -> list[dict]:
+        """query_personal_graph — searches the user's own memory graph.
+
+        Args:
+            query: Free-text topic (entity name, condition, supplement, …).
+            k: Max number of matching personal entities to return.
+
+        Returns:
+            List of entity dicts: name, type, canonical link (if any),
+            mention count, first/last seen, and the most recent mention
+            snippets. Returns [] if nothing matches — that means the user
+            has no recorded history on this topic.
+        """
+        from . import personal_entities as pe
+
+        hits = pe.search_personal_entities_sync(query=query, limit=k)
+        emit(
+            RunEvent(
+                type="tool_call",
+                role="researcher",
+                tool_name="query_personal_graph",
+                tool_query=str(query),
+                retrieved_entities=[
+                    {
+                        "id": h.get("id"),
+                        "type": h.get("type"),
+                        "name": h.get("name"),
+                        "score": h.get("mention_count") or 0,
+                        "edge_count": len(h.get("recent_mentions") or []),
+                    }
+                    for h in hits
+                ],
+            )
+        )
+        return hits
+
+    return FunctionTool(query_personal_graph)
+
+
 def _mcp_kb_tool(emit: Callable[[RunEvent], None]) -> FunctionTool:
-    """Route search_health_kb through the health_kb MCP server."""
+    """Curated-KB tool — calls src.rag directly.
+
+    See _mcp_graph_tool for why we don't actually go through MCP for the
+    in-process tools.
+    """
 
     def search_health_kb(query: str, k: int = 5) -> list[dict]:
         """search_health_kb — retrieves authoritative health-guideline chunks.
@@ -360,10 +426,9 @@ def _mcp_kb_tool(emit: Callable[[RunEvent], None]) -> FunctionTool:
         Returns:
             A list of {text, source_url, title, score} dicts.
         """
-        result = get_manager().call_sync(
-            "health_kb", "search_health_kb", {"query": query, "k": k}
-        )
-        chunks = _parse_mcp_result(result)
+        from src.rag import search_health_kb as _kb_search
+
+        chunks = [c.to_dict() for c in _kb_search(query, k=k)]
         sources = [
             {
                 "url": c.get("source_url") or "",
@@ -556,6 +621,7 @@ def _build_instrumented_workforce(
     server is connected (BRAVE_API_KEY set)."""
     manager = get_manager()
     researcher_tools = [
+        _personal_graph_tool(emit),
         _mcp_graph_tool(emit),
         _mcp_kb_tool(emit),
     ]
@@ -564,6 +630,15 @@ def _build_instrumented_workforce(
         researcher_tools.append(_mcp_read_notes_tool(emit))
     if manager.is_connected("brave_search"):
         researcher_tools.append(_mcp_brave_tool(emit))
+    # Always-on web fallback. When the curated KB has a gap and Brave isn't
+    # configured, DuckDuckGo keeps the Researcher from bricking the run.
+    # Failures (rate limits, import issues) silently skip — curated/MCP path
+    # is still available.
+    try:
+        from camel.toolkits import SearchToolkit
+        researcher_tools.append(FunctionTool(SearchToolkit().search_duckduckgo))
+    except Exception:
+        pass
     researcher_tools.append(_make_question_tool("researcher", emit))
 
     researcher = ChatAgent(
@@ -625,6 +700,91 @@ def start_run(idea: str, biomarkers: Optional[List[dict]] = None) -> str:
     return task_id
 
 
+def start_ask(question: str) -> str:
+    """Schedule a single-agent Q&A run; return its task_id immediately.
+
+    Distinct from `start_run` in that it does NOT use the Workforce:
+      - One ChatAgent with ASK_PROMPT, no tools, no web search.
+      - Grounded entirely in the user's profile synthesis (the rolling
+        "About me" written by backend.profile_synthesis).
+      - Persists as a `run` row with mode='ask' so it shows up in the
+        same surfaces (Memory Sources, runs list) but `/plan` filters it
+        out.
+    """
+    task_id = uuid.uuid4().hex[:12]
+    _queues[task_id] = asyncio.Queue()
+    asyncio.create_task(_run_ask(task_id, question))
+    return task_id
+
+
+async def _run_ask(task_id: str, question: str) -> None:
+    queue = _queues[task_id]
+    loop = asyncio.get_running_loop()
+    cfg = get_active_config()
+
+    def emit(event: RunEvent) -> None:
+        loop.call_soon_threadsafe(queue.put_nowait, event)
+        db.append_event_threadsafe(
+            task_id, event.type, event.role, event.model_dump(exclude_none=True)
+        )
+
+    try:
+        db.create_run_sync(task_id, question, cfg.backend.value, mode="ask")
+        totals: Dict[str, Dict[str, int]] = defaultdict(
+            lambda: {"prompt_tokens": 0, "completion_tokens": 0, "cached_tokens": 0}
+        )
+
+        agent = ChatAgent(
+            system_message=ASK_PROMPT,
+            model=_model(stream=False),
+            on_request_usage=_usage_callback("summarizer", totals, emit),
+        )
+
+        emit(RunEvent(type="task_started"))
+        emit(RunEvent(type="worker_running", role="summarizer"))
+
+        profile_row = db.get_profile_sync()
+        synthesis = ((profile_row or {}).get("notes") or "").strip()
+        if synthesis:
+            user_input = (
+                "About me (the system's working model of me):\n\n"
+                + synthesis
+                + "\n\n---\n\nQuestion: "
+                + question
+            )
+        else:
+            user_input = (
+                "(No About-me synthesis is available yet — answer the "
+                "question with appropriate caveats.)\n\nQuestion: "
+                + question
+            )
+
+        resp = await asyncio.to_thread(agent.step, user_input)
+        answer = (resp.msgs[0].content if resp.msgs else "").strip()
+        if not answer:
+            answer = "(no answer produced)"
+
+        # Single chunk emission so the frontend's existing memo accumulator
+        # picks it up the same way as a Workforce summarizer chunk.
+        emit(RunEvent(type="worker_chunk", role="summarizer", text=answer, mode="final"))
+        emit(RunEvent(type="task_complete", memo=answer))
+
+        db.finalize_run_sync(
+            task_id, status="done", memo=answer, cost_usd=_total_cost(totals, cfg)
+        )
+        # Same memory-graph + synthesis hooks as a full run — an ask still
+        # feeds the agent's working model of the user.
+        _spawn_entity_extract(answer, "run_memo", task_id)
+        from . import profile_synthesis
+        profile_synthesis.spawn_profile_synthesis()
+
+    except Exception as exc:
+        emit(RunEvent(type="error", text=f"{type(exc).__name__}: {exc}"))
+        db.finalize_run_sync(task_id, status="error")
+    finally:
+        loop.call_soon_threadsafe(queue.put_nowait, None)
+
+
 def resolve_question(request_id: str, answer: str) -> bool:
     """Fill the slot of a pending agent-initiated question. Returns False
     if the request_id is unknown (already answered, timed out, or never
@@ -668,6 +828,111 @@ def _format_biomarkers(biomarkers: List[dict]) -> str:
         flag_tag = "" if flag == "UNKNOWN" else f" [{flag}]"
         lines.append(f"  - {name}: {value} {unit} (ref {ref}){flag_tag}")
     return "\n".join(lines)
+
+
+def _format_recent_check_ins(rows: list[dict]) -> str:
+    if not rows:
+        return ""
+    lines = ["Recent daily check-ins (most recent first):"]
+    for r in rows:
+        bits = [
+            f"energy {r['energy']}/5" if r.get("energy") is not None else "",
+            f"{r['sleep_hours']}h sleep" if r.get("sleep_hours") is not None else "",
+            f"mood {r['mood']}/5" if r.get("mood") is not None else "",
+            f"notes: {r['adherence_notes']}" if r.get("adherence_notes") else "",
+        ]
+        lines.append(f"  - {r['day']}: " + " · ".join(b for b in bits if b))
+    return "\n".join(lines)
+
+
+def _format_recent_events(rows: list[dict]) -> str:
+    """Group events by category, list each chronologically within a category."""
+    if not rows:
+        return ""
+    by_cat: dict[str, list[dict]] = defaultdict(list)
+    for r in rows:
+        by_cat[r["category"]].append(r)
+    lines = [
+        "Retroactively logged events over the past two weeks "
+        "(symptoms, meals, sleep, exercise, supplements, mood, etc.):"
+    ]
+    for cat in sorted(by_cat.keys()):
+        lines.append(f"  {cat}:")
+        for r in by_cat[cat][:10]:
+            desc = (r.get("description") or "").strip().replace("\n", " ")
+            if len(desc) > 140:
+                desc = desc[:137] + "…"
+            lines.append(f"    - {r['day']}: {desc}" if desc else f"    - {r['day']}")
+    return "\n".join(lines)
+
+
+def _format_prior_plan(run_row: Optional[dict]) -> str:
+    """Compact summary of the most recent completed plan, if any."""
+    if not run_row or not run_row.get("memo"):
+        return ""
+    memo = run_row["memo"]
+    snippet = memo if len(memo) <= 1200 else memo[:1200] + "\n[…truncated…]"
+    when = ""
+    if run_row.get("started_at"):
+        when = f" (run {run_row['task_id']}, {time.strftime('%Y-%m-%d', time.localtime(run_row['started_at']))})"
+    return (
+        f"Most recent prior plan{when}. Use this to mark recommendations as "
+        f"still-applicable, retired, or updated rather than starting over:\n\n"
+        f"{snippet}"
+    )
+
+
+def _build_run_context(current_task_id: str) -> tuple[list[str], dict[str, int]]:
+    """Read accumulated state for the run context.
+
+    Returns (sections, counts):
+      - sections: markdown chunks ready to concatenate into the root task
+      - counts:   sizes of each input, surfaced to the UI via `run_context`
+    """
+    check_ins = db.list_check_ins_sync(limit=7)
+    today = time.strftime("%Y-%m-%d", time.localtime())
+    fortnight_ago = time.strftime(
+        "%Y-%m-%d", time.localtime(time.time() - 14 * 86400)
+    )
+    events = db.list_events_sync(since=fortnight_ago, until=today, limit=200)
+
+    prior = next(
+        (
+            r
+            for r in db.list_runs_sync(limit=20)
+            if r.get("status") == "done"
+            and r.get("memo")
+            and r.get("task_id") != current_task_id
+        ),
+        None,
+    )
+
+    entity_count = 0
+    try:
+        from . import personal_entities as pe
+
+        entity_count = len(pe.get_graph_data_sync().get("nodes", []))
+    except Exception:
+        entity_count = 0
+
+    sections: list[str] = []
+    s = _format_recent_check_ins(check_ins)
+    if s:
+        sections.append(s)
+    s = _format_recent_events(events)
+    if s:
+        sections.append(s)
+    s = _format_prior_plan(prior)
+    if s:
+        sections.append(s)
+
+    counts = {
+        "check_ins": len(check_ins),
+        "events": len(events),
+        "entities": entity_count,
+        "prior_plans": 1 if prior else 0,
+    }
+    return sections, counts
 
 
 async def _run(task_id: str, idea: str, biomarkers: List[dict]) -> None:
@@ -725,6 +990,25 @@ async def _run(task_id: str, idea: str, biomarkers: List[dict]) -> None:
             )
         if biomarker_block:
             sections.append("Current biomarkers:\n" + biomarker_block)
+
+        # Longitudinal context: pull the user's accumulated state (recent
+        # check-ins, recent retroactive events, the prior plan memo, and the
+        # size of their personal entity graph) into the run. Counts are
+        # emitted as a `run_context` event so the UI can show "Informed by:
+        # N check-ins · M events · …" — visible proof the loop closed.
+        ctx_sections, ctx_counts = _build_run_context(task_id)
+        sections.extend(ctx_sections)
+        emit(
+            RunEvent(
+                type="run_context",
+                context_check_ins=ctx_counts["check_ins"],
+                context_events=ctx_counts["events"],
+                context_biomarkers=len(biomarkers),
+                context_entities=ctx_counts["entities"],
+                context_prior_plans=ctx_counts["prior_plans"],
+            )
+        )
+
         sections.append("This run's focus / question:\n" + idea)
         profile_text = "\n\n---\n\n".join(sections)
 

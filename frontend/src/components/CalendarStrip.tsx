@@ -3,8 +3,9 @@
 // App.tsx and passed down so the TrendChart underneath stays in lockstep.
 
 import { useMemo, useState } from "react";
-import { EVENT_CATEGORIES, EventCategory, LoggedEvent } from "../lib/api";
+import { CheckIn, EVENT_CATEGORIES, EventCategory, LoggedEvent } from "../lib/api";
 import {
+  useCheckIns,
   useDeleteEvent,
   useEvents,
   useLogEvent,
@@ -107,6 +108,10 @@ export default function CalendarStrip({ year, month, onChange }: Props) {
     until: grid.cells[grid.cells.length - 1].day,
     limit: 1000,
   });
+  // Pull enough check-ins to cover any visible month and the surrounding pad.
+  // No date-range filter exists server-side, so we over-fetch and filter
+  // client-side. 90 is plenty for a one-month view.
+  const { data: checkIns } = useCheckIns(90);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
   const byDay = useMemo(() => {
@@ -118,6 +123,12 @@ export default function CalendarStrip({ year, month, onChange }: Props) {
     }
     return m;
   }, [events]);
+
+  const checkInByDay = useMemo(() => {
+    const m = new Map<string, CheckIn>();
+    for (const c of checkIns || []) m.set(c.day, c);
+    return m;
+  }, [checkIns]);
 
   const today = formatDay(new Date());
 
@@ -165,7 +176,7 @@ export default function CalendarStrip({ year, month, onChange }: Props) {
           size="sm"
           onClick={() => setSelectedDay(today)}
         >
-          + Log event
+          + Add note or event
         </Button>
       </div>
 
@@ -178,6 +189,7 @@ export default function CalendarStrip({ year, month, onChange }: Props) {
       <div className="grid grid-cols-7 gap-1">
         {grid.cells.map(({ day, inMonth }) => {
           const dayEvents = byDay.get(day) || [];
+          const checkIn = checkInByDay.get(day);
           const isToday = day === today;
           const cats = uniqueCategories(dayEvents);
 
@@ -204,7 +216,10 @@ export default function CalendarStrip({ year, month, onChange }: Props) {
               type="button"
               onClick={() => setSelectedDay(day)}
               className={cellClass}
-              title={`${day} — ${dayEvents.length} event${dayEvents.length === 1 ? "" : "s"}`}
+              title={
+                `${day} — ${dayEvents.length} event${dayEvents.length === 1 ? "" : "s"}` +
+                (checkIn ? " · check-in logged" : "")
+              }
             >
               <div className="flex items-baseline justify-between">
                 <span
@@ -215,11 +230,20 @@ export default function CalendarStrip({ year, month, onChange }: Props) {
                 >
                   {parseInt(day.split("-")[2], 10)}
                 </span>
-                {dayEvents.length > 4 && (
-                  <span className="font-mono text-[9px] text-stone-gray">
-                    +{dayEvents.length - 4}
-                  </span>
-                )}
+                <div className="flex items-center gap-1">
+                  {checkIn && (
+                    <span
+                      className="inline-block h-2 w-2 rounded-full border border-fire-orange bg-paper-white"
+                      title="Check-in logged"
+                      aria-label="check-in logged"
+                    />
+                  )}
+                  {dayEvents.length > 4 && (
+                    <span className="font-mono text-[9px] text-stone-gray">
+                      +{dayEvents.length - 4}
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="mt-auto flex flex-wrap gap-1">
                 {cats.slice(0, 4).map((c) => (
@@ -239,6 +263,7 @@ export default function CalendarStrip({ year, month, onChange }: Props) {
         day={selectedDay}
         onClose={() => setSelectedDay(null)}
         events={selectedDay ? byDay.get(selectedDay) || [] : []}
+        checkIn={selectedDay ? checkInByDay.get(selectedDay) : undefined}
       />
     </Card>
   );
@@ -259,17 +284,21 @@ function uniqueCategories(events: LoggedEvent[]): EventCategory[] {
 function DayEventsModal({
   day,
   events,
+  checkIn,
   onClose,
 }: {
   day: string | null;
   events: LoggedEvent[];
+  checkIn?: CheckIn;
   onClose: () => void;
 }) {
   const password = useStore((s) => s.password);
   const log = useLogEvent();
   const del = useDeleteEvent();
 
-  const [category, setCategory] = useState<EventCategory>("symptom");
+  // Default to "note" — it's the most common quick-add case and matches the
+  // mental model of "drop something you want the agents to remember."
+  const [category, setCategory] = useState<EventCategory>("note");
   const [description, setDescription] = useState("");
   const [tags, setTags] = useState("");
   const [date, setDate] = useState<string>("");
@@ -321,10 +350,39 @@ function DayEventsModal({
           {day ? prettyDay(day) : "Log event"}
         </DialogTitle>
         <p className="mt-0.5 text-[12px] text-slate-gray">
-          {events.length === 0
-            ? "Nothing logged yet."
-            : `${events.length} event${events.length === 1 ? "" : "s"} on this day.`}
+          {(() => {
+            const parts: string[] = [];
+            if (checkIn) parts.push("check-in logged");
+            if (events.length > 0) {
+              parts.push(`${events.length} event${events.length === 1 ? "" : "s"}`);
+            }
+            return parts.length === 0 ? "Nothing logged yet." : parts.join(" · ") + ".";
+          })()}
         </p>
+
+        {checkIn && (
+          <section className="mt-4 rounded-default border border-fire-orange/40 bg-fire-orange/[0.04] p-3">
+            <div className="mb-2 flex items-baseline justify-between">
+              <div className="text-[10px] uppercase tracking-wider text-fire-orange">
+                Daily check-in
+              </div>
+              <div className="font-mono text-[11px] text-stone-gray">
+                {[
+                  checkIn.energy != null ? `energy ${checkIn.energy}/5` : null,
+                  checkIn.sleep_hours != null ? `${checkIn.sleep_hours}h sleep` : null,
+                  checkIn.mood != null ? `mood ${checkIn.mood}/5` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || "no stats"}
+              </div>
+            </div>
+            {checkIn.adherence_notes ? (
+              <p className="text-[13px] text-ink-black">{checkIn.adherence_notes}</p>
+            ) : (
+              <p className="text-[12px] italic text-silver-mist">(no notes)</p>
+            )}
+          </section>
+        )}
 
         {events.length > 0 && (
           <ul className="mt-4 space-y-2">
@@ -372,7 +430,7 @@ function DayEventsModal({
 
         <div className="mt-5 space-y-3 border-t border-frost-gray pt-4">
           <div className="text-[10px] uppercase tracking-wider text-stone-gray">
-            Add event
+            Add note or event
           </div>
 
           <div className="grid grid-cols-2 gap-2">
@@ -431,7 +489,7 @@ function DayEventsModal({
               onClick={submit}
               disabled={log.isPending || !description.trim()}
             >
-              {log.isPending ? "Logging…" : "Log event"}
+              {log.isPending ? "Saving…" : "Save"}
             </Button>
           </div>
         </div>

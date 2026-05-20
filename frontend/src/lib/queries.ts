@@ -19,6 +19,14 @@ export const useMCPServers = () =>
 export const useRuns = (limit = 20) =>
   useQuery({ queryKey: ["runs", limit], queryFn: () => api.runs(limit) });
 
+export const useAsk = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: api.ask,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["runs"] }),
+  });
+};
+
 export const useTimeline = (taskId: string | undefined) =>
   useQuery({
     queryKey: ["timeline", taskId],
@@ -60,6 +68,23 @@ export const useSaveProfile = () => {
   });
 };
 
+export const useProfileSynthesis = () =>
+  useQuery({
+    queryKey: ["profile", "synthesis"],
+    queryFn: api.profileSynthesis,
+    refetchInterval: 8_000,
+  });
+
+export const useSynthesizeProfile = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: api.synthesizeProfile,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["profile"] });
+    },
+  });
+};
+
 export const useAddCheckIn = () => {
   const qc = useQueryClient();
   return useMutation({
@@ -90,6 +115,12 @@ export const useReindexMemoryGraph = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["memory-graph"] }),
   });
 };
+
+export const useMemoryGraphSources = () =>
+  useQuery({
+    queryKey: ["memory-graph", "sources"],
+    queryFn: api.memoryGraphSources,
+  });
 
 // v3 — events / calendar / trend strip
 

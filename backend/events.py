@@ -4,6 +4,7 @@ from pydantic import BaseModel
 
 EventType = Literal[
     "task_started",
+    "run_context",
     "worker_running",
     "worker_chunk",
     "worker_usage",
@@ -50,3 +51,9 @@ class RunEvent(BaseModel):
     request_id: Optional[str] = None
     # human_input_answered: the user's reply (or "use your best judgment").
     answer: Optional[str] = None
+    # run_context: counts of what fed this run from accumulated memory.
+    context_check_ins: Optional[int] = None
+    context_events: Optional[int] = None
+    context_biomarkers: Optional[int] = None
+    context_entities: Optional[int] = None
+    context_prior_plans: Optional[int] = None

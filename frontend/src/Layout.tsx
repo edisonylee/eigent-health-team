@@ -7,11 +7,10 @@ import { useAuthStatus, useModelStatus } from "./lib/queries";
 import { useStore } from "./store";
 
 const nav = [
-  { to: "/", label: "Run" },
-  { to: "/agents", label: "Agents" },
-  { to: "/check-in", label: "Check-in" },
-  { to: "/memory-graph", label: "Memory" },
-  { to: "/evals", label: "Evals" },
+  { to: "/today", label: "Today" },
+  { to: "/memory", label: "Memory" },
+  { to: "/ask", label: "Ask" },
+  { to: "/plan", label: "Plan" },
   { to: "/settings", label: "Settings" },
 ];
 
@@ -50,7 +49,7 @@ export default function Layout() {
       <header className="sticky top-0 z-30 border-b border-frost-gray bg-cloud-canvas/85 backdrop-blur-md">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-6 py-3">
           <Link
-            to="/"
+            to="/today"
             className="text-[15px] font-semibold tracking-tight text-ink-black"
           >
             HealthOS
@@ -60,7 +59,6 @@ export default function Layout() {
               <NavLink
                 key={n.to}
                 to={n.to}
-                end={n.to === "/"}
                 className={({ isActive }) =>
                   "rounded-default px-3 py-1.5 transition-colors " +
                   (isActive

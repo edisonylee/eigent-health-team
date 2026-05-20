@@ -53,21 +53,17 @@ export default function Agents() {
   };
 
   return (
-    <div className="px-6 py-8">
-      <div className="mx-auto max-w-5xl">
-        <h1 className="mb-2 text-heading font-semibold text-ink-black">
-          Agent roster
-        </h1>
-        <p className="mb-6 text-body text-slate-gray">
-          Four specialists, coordinated by a CAMEL Workforce. Each can ask the
-          user a clarifying question mid-run via the in-process{" "}
-          <code className="rounded bg-paper-white/10 px-1 text-ink-black">
-            request_human_input
-          </code>{" "}
-          tool.
-        </p>
+    <div>
+      <p className="mb-5 text-body text-slate-gray">
+        Four specialists, coordinated by a CAMEL Workforce. Each can ask the
+        user a clarifying question mid-run via the in-process{" "}
+        <code className="rounded bg-paper-white/10 px-1 text-ink-black">
+          request_human_input
+        </code>{" "}
+        tool.
+      </p>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {ROLE_ORDER.map((role) => (
             <Card key={role} surface="starless" className="flex flex-col gap-3">
               <div className="flex items-center justify-between">
@@ -129,8 +125,7 @@ export default function Agents() {
                 </details>
               )}
             </Card>
-          ))}
-        </div>
+        ))}
       </div>
     </div>
   );

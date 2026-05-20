@@ -11,6 +11,8 @@ import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Input } from "../components/ui/Input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/Tabs";
+import Agents from "./Agents";
+import Evals from "./Evals";
 
 export default function Settings() {
   return (
@@ -26,6 +28,8 @@ export default function Settings() {
           <TabsList className="mb-6">
             <TabsTrigger value="model">Model</TabsTrigger>
             <TabsTrigger value="mcp">MCP servers</TabsTrigger>
+            <TabsTrigger value="agents">Agents</TabsTrigger>
+            <TabsTrigger value="evals">Evals</TabsTrigger>
             <TabsTrigger value="data">Data</TabsTrigger>
           </TabsList>
 
@@ -34,6 +38,12 @@ export default function Settings() {
           </TabsContent>
           <TabsContent value="mcp">
             <MCPTab />
+          </TabsContent>
+          <TabsContent value="agents">
+            <Agents />
+          </TabsContent>
+          <TabsContent value="evals">
+            <Evals />
           </TabsContent>
           <TabsContent value="data">
             <DataTab />

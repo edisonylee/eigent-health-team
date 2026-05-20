@@ -27,12 +27,8 @@ export default function Evals() {
   });
 
   return (
-    <div className="px-6 py-8">
-      <div className="mx-auto max-w-5xl">
-        <h1 className="mb-2 text-heading font-semibold text-ink-black">
-          Evals dashboard
-        </h1>
-        <p className="mb-6 text-body text-slate-gray">
+    <div>
+      <p className="mb-5 text-body text-slate-gray">
           LLM-as-judge scores from{" "}
           <code className="rounded bg-paper-white/10 px-1 text-ink-black">
             evals/results.csv
@@ -111,11 +107,10 @@ export default function Evals() {
                 <div className="px-4 py-6 text-center text-[12px] text-stone-400">
                   No eval rows yet.
                 </div>
-              )}
-            </div>
-          </>
-        )}
-      </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

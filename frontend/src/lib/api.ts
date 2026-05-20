@@ -28,6 +28,7 @@ export interface RunRow {
   memo: string | null;
   cost_usd: number;
   model_backend: string | null;
+  mode: "plan" | "ask";
 }
 
 export interface TimelineEvent {
@@ -146,6 +147,7 @@ export interface MemoryGraphSources {
     started_at: number | null;
     ended_at: number | null;
     status: string | null;
+    mode: "plan" | "ask";
   }[];
   profile: ProfileSynthesis;
   biomarkers: BiomarkerRow[];
@@ -188,6 +190,11 @@ export const api = {
 
   runs: (limit = 20) =>
     jsonFetch<{ runs: RunRow[] }>(`/api/runs?limit=${limit}`).then((r) => r.runs),
+  ask: (body: { question: string; password: string }) =>
+    jsonFetch<{ task_id: string }>("/api/ask", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   run: (taskId: string) => jsonFetch<RunRow>(`/api/runs/${taskId}`),
   timeline: (taskId: string) =>
     jsonFetch<{ task_id: string; events: TimelineEvent[] }>(

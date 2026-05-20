@@ -51,13 +51,21 @@ export default function MemoPanel({ onFollowUp }: MemoPanelProps) {
       {phase === "done" && onFollowUp && (
         <div className="rounded-card border border-frost-gray bg-paper-white p-5">
           <h3 className="text-[11px] font-semibold uppercase tracking-[0.2em] text-fire-orange">
-            Follow-up
+            Refine this plan
           </h3>
           <p className="mt-1.5 text-[12px] text-slate-gray">
-            Add new context — e.g.{" "}
+            Add context that should change the plan — e.g.{" "}
             <em>"actually I also have left knee pain on stairs"</em>. Only the
             Safety Reviewer + Plan Writer re-run; Researcher and Assessor's
-            work is preserved.
+            work is preserved. For lasting bio that every future run should
+            see, edit your{" "}
+            <a
+              href="/profile"
+              className="text-fire-orange underline-offset-4 hover:underline"
+            >
+              Profile
+            </a>{" "}
+            instead.
           </p>
           <div className="mt-3 flex gap-2">
             <input
@@ -65,7 +73,7 @@ export default function MemoPanel({ onFollowUp }: MemoPanelProps) {
               value={note}
               onChange={(e) => setNote(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && submit()}
-              placeholder="Anything to add to your profile?"
+              placeholder="Add context to refine the plan…"
               disabled={submitting}
               className="flex-1 rounded-default bg-paper-white/5 px-3 py-2 text-body text-ink-black placeholder:text-slate-gray outline-none transition-[box-shadow] focus:shadow-subtle-1 disabled:opacity-40"
             />

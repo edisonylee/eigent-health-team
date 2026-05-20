@@ -72,7 +72,8 @@ CREATE TABLE IF NOT EXISTS run (
     idea           TEXT,
     memo           TEXT,
     cost_usd       REAL DEFAULT 0,
-    model_backend  TEXT
+    model_backend  TEXT,
+    mode           TEXT NOT NULL DEFAULT 'plan'
 );
 
 CREATE TABLE IF NOT EXISTS run_event (
@@ -169,9 +170,20 @@ def _connect() -> sqlite3.Connection:
 
 
 def init_schema_sync() -> None:
-    """Create tables if missing. Safe to call repeatedly."""
+    """Create tables if missing. Safe to call repeatedly.
+
+    Also performs additive column migrations for existing DBs — SQLite has
+    no IF NOT EXISTS on ADD COLUMN, so we PRAGMA-check before altering.
+    """
     with _connect() as conn:
         conn.executescript(SCHEMA)
+        # `run.mode` was added when /ask was introduced — backfill on
+        # older DBs created before this column existed.
+        cols = {r["name"] for r in conn.execute("PRAGMA table_info(run)").fetchall()}
+        if "mode" not in cols:
+            conn.execute(
+                "ALTER TABLE run ADD COLUMN mode TEXT NOT NULL DEFAULT 'plan'"
+            )
         conn.commit()
 
 
@@ -272,12 +284,13 @@ def create_run_sync(
     idea: str,
     model_backend: str,
     profile_id: Optional[int] = None,
+    mode: str = "plan",
 ) -> None:
     with _connect() as conn:
         conn.execute(
-            "INSERT OR REPLACE INTO run(task_id, profile_id, started_at, status, idea, model_backend) "
-            "VALUES(?, ?, ?, 'running', ?, ?)",
-            (task_id, profile_id, time.time(), idea, model_backend),
+            "INSERT OR REPLACE INTO run(task_id, profile_id, started_at, status, "
+            "idea, model_backend, mode) VALUES(?, ?, ?, 'running', ?, ?, ?)",
+            (task_id, profile_id, time.time(), idea, model_backend, mode),
         )
         conn.commit()
 
@@ -300,8 +313,8 @@ def finalize_run_sync(
 def list_runs_sync(limit: int = 20) -> list[dict]:
     with _connect() as conn:
         rows = conn.execute(
-            "SELECT task_id, started_at, ended_at, status, idea, memo, cost_usd, model_backend "
-            "FROM run ORDER BY started_at DESC LIMIT ?",
+            "SELECT task_id, started_at, ended_at, status, idea, memo, cost_usd, "
+            "model_backend, mode FROM run ORDER BY started_at DESC LIMIT ?",
             (limit,),
         ).fetchall()
         return [dict(r) for r in rows]
@@ -345,8 +358,15 @@ def get_timeline_sync(task_id: str) -> list[dict]:
         return out
 
 
-async def create_run(task_id: str, idea: str, model_backend: str) -> None:
-    await asyncio.to_thread(create_run_sync, task_id, idea, model_backend)
+async def create_run(
+    task_id: str,
+    idea: str,
+    model_backend: str,
+    mode: str = "plan",
+) -> None:
+    await asyncio.to_thread(
+        create_run_sync, task_id, idea, model_backend, None, mode
+    )
 
 
 async def finalize_run(
