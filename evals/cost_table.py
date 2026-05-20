@@ -16,11 +16,9 @@ from typing import Any, Callable, Dict
 from dotenv import load_dotenv
 
 from camel.agents import ChatAgent
-from camel.models import ModelFactory
 from camel.societies.workforce import Workforce
 from camel.tasks import Task
 from camel.toolkits import FunctionTool, SearchToolkit
-from camel.types import ModelPlatformType, ModelType
 
 from src.agents import (
     ASSESSOR_PROMPT,
@@ -28,20 +26,10 @@ from src.agents import (
     RESEARCHER_PROMPT,
     SAFETY_PROMPT,
 )
-
-# GPT-4o pricing (USD / 1M tokens), early 2026. Update if Anthropic/OpenAI rates change.
-INPUT_PER_M = 2.50
-OUTPUT_PER_M = 10.00
+from src.model_config import build_model as _model
+from src.model_config import get_active_config
 
 PROFILE = "34, software engineer, sit all day, want more energy and to lose 10 lbs, mild back pain, sleep about 6 hours"
-
-
-def _model():
-    return ModelFactory.create(
-        model_platform=ModelPlatformType.OPENAI,
-        model_type=ModelType.GPT_4O,
-        model_config_dict={"temperature": 0.2},
-    )
 
 
 def _agent(prompt: str, on_usage: Callable[[Dict[str, Any]], None], tools=None) -> ChatAgent:
@@ -118,12 +106,16 @@ def main() -> int:
     # Coordinator + task-planner usage isn't captured (we don't own those
     # agents). We report what we measured: the four named workers.
 
+    cfg = get_active_config()
     rows = []
     grand = {"requests": 0, "prompt_tokens": 0, "completion_tokens": 0, "cost": 0.0}
     order = ["Health Researcher", "Health Assessor", "Safety Reviewer", "Plan Writer"]
     for name in order:
         b = totals[name]
-        cost = b["prompt_tokens"] * INPUT_PER_M / 1_000_000 + b["completion_tokens"] * OUTPUT_PER_M / 1_000_000
+        cost = (
+            b["prompt_tokens"] * cfg.input_cost_per_m / 1_000_000
+            + b["completion_tokens"] * cfg.output_cost_per_m / 1_000_000
+        )
         rows.append((name, b["requests"], b["prompt_tokens"], b["completion_tokens"], cost))
         grand["requests"] += b["requests"]
         grand["prompt_tokens"] += b["prompt_tokens"]

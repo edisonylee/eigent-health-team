@@ -8,7 +8,7 @@ the web. All callbacks are thread-safe — they may fire from worker threads.
 """
 
 import asyncio
-import functools
+import json
 import re
 import threading
 import time
@@ -19,19 +19,20 @@ from typing import Any, AsyncIterator, Callable, Dict, List, Optional
 from camel.agents import ChatAgent
 from camel.societies.workforce import Workforce
 from camel.tasks import Task
-from camel.toolkits import FunctionTool, SearchToolkit
+from camel.toolkits import FunctionTool
 
 from src.agents import (
     ASSESSOR_PROMPT,
     PLAN_PROMPT,
     RESEARCHER_PROMPT,
     SAFETY_PROMPT,
-    _model,
 )
-from src.graph_rag import search_health_graph as _graph_search
-from src.rag import search_health_kb as _kb_search
+from src.model_config import build_model as _model
+from src.model_config import get_active_config
 
+from . import db
 from .events import RunEvent
+from .mcp_manager import get_manager
 
 # task_id -> event queue. `None` on the queue is the close sentinel.
 _queues: dict[str, asyncio.Queue] = {}
@@ -62,9 +63,7 @@ _finished_runs: dict[str, FinishedRun] = {}
 _RUN_TIMES: list[float] = []
 _MAX_RUNS_PER_HOUR = 20
 
-# GPT-4o pricing (USD / 1M tokens). Update if rates change.
-_INPUT_PER_M = 2.50
-_OUTPUT_PER_M = 10.00
+# Pricing is sourced from the active model_config — Ollama returns 0.
 
 
 def rate_limited() -> bool:
@@ -78,6 +77,17 @@ def rate_limited() -> bool:
 
 _SUBTASK_MARKER = re.compile(r"-{2,}\s*Subtask\s+\S+\s+Result\s*-{2,}")
 _CONCLUSION_MARKER = re.compile(r"^##\s+Conclusion\s*$", re.MULTILINE | re.IGNORECASE)
+
+
+def _total_cost(totals: Dict[str, Dict[str, int]], cfg) -> float:
+    """Sum cost across all workers using the active backend's pricing."""
+    total = 0.0
+    for b in totals.values():
+        total += (
+            b.get("prompt_tokens", 0) * cfg.input_cost_per_m / 1_000_000
+            + b.get("completion_tokens", 0) * cfg.output_cost_per_m / 1_000_000
+        )
+    return total
 
 
 def _strip_reasoning_prelude(text: str) -> str:
@@ -123,26 +133,26 @@ def _role_for(description: str) -> Optional[str]:
     return None
 
 
-def _wrap_search_tool(
-    emit: Callable[[RunEvent], None],
-) -> FunctionTool:
-    """Wrap SearchToolkit.search_duckduckgo to emit a tool_call event per call."""
-    real = SearchToolkit().search_duckduckgo
+def _parse_mcp_result(result: Any) -> list[dict]:
+    """Pull JSON payload out of an MCP CallToolResult.
 
-    @functools.wraps(real)
-    def search_duckduckgo(*args: Any, **kwargs: Any):
-        query = kwargs.get("query", args[0] if args else "")
-        emit(
-            RunEvent(
-                type="tool_call",
-                role="researcher",
-                tool_name="search_duckduckgo",
-                tool_query=str(query),
-            )
-        )
-        return real(*args, **kwargs)
-
-    return FunctionTool(search_duckduckgo)
+    Our health_kb server returns one TextContent with a JSON-serialized list.
+    """
+    try:
+        content = getattr(result, "content", None) or []
+        for c in content:
+            text = getattr(c, "text", None)
+            if not text:
+                continue
+            try:
+                parsed = json.loads(text)
+                if isinstance(parsed, list):
+                    return parsed
+            except json.JSONDecodeError:
+                continue
+    except Exception:
+        pass
+    return []
 
 
 def _make_question_tool(
@@ -152,6 +162,10 @@ def _make_question_tool(
     """Build a `request_human_input` FunctionTool bound to a specific
     worker role. The tool blocks the worker thread on a threading.Event
     until the user's POST to /api/run/{id}/answer resolves it.
+
+    The active `emit` is stashed on the pending-question record so
+    `resolve_question` can fire a `human_input_answered` event back through
+    the same SSE stream + DB log.
     """
 
     def request_human_input(question: str, choices: str = "") -> str:
@@ -172,7 +186,13 @@ def _make_question_tool(
         rid = uuid.uuid4().hex[:8]
         ev = threading.Event()
         slot = {"answer": "use your best judgment"}
-        _pending_questions[rid] = {"event": ev, "slot": slot, "role": role}
+        _pending_questions[rid] = {
+            "event": ev,
+            "slot": slot,
+            "role": role,
+            "question": question,
+            "emit": emit,
+        }
 
         opts: list[str] = [c.strip() for c in (choices or "").split(",") if c.strip()]
 
@@ -193,8 +213,8 @@ def _make_question_tool(
     return FunctionTool(request_human_input)
 
 
-def _wrap_graph_tool(emit: Callable[[RunEvent], None]) -> FunctionTool:
-    """Wrap query_health_graph to emit tool_call + retrieved_entities."""
+def _mcp_graph_tool(emit: Callable[[RunEvent], None]) -> FunctionTool:
+    """Route query_health_graph through the health_kb MCP server."""
 
     def query_health_graph(query: str, k: int = 5) -> list[dict]:
         """query_health_graph — retrieves entities + 1-hop relationships.
@@ -206,14 +226,17 @@ def _wrap_graph_tool(emit: Callable[[RunEvent], None]) -> FunctionTool:
         Returns:
             A list of entity dicts with typed edges.
         """
-        entities = _graph_search(query, k=k)
+        result = get_manager().call_sync(
+            "health_kb", "query_health_graph", {"query": query, "k": k}
+        )
+        entities = _parse_mcp_result(result)
         payload = [
             {
-                "id": e.id,
-                "type": e.type,
-                "name": e.name,
-                "score": round(e.score, 4),
-                "edge_count": len(e.edges),
+                "id": e.get("id"),
+                "type": e.get("type"),
+                "name": e.get("name"),
+                "score": round(float(e.get("score") or 0), 4),
+                "edge_count": len(e.get("edges") or []),
             }
             for e in entities
         ]
@@ -226,13 +249,13 @@ def _wrap_graph_tool(emit: Callable[[RunEvent], None]) -> FunctionTool:
                 retrieved_entities=payload,
             )
         )
-        return [e.to_dict() for e in entities]
+        return entities
 
     return FunctionTool(query_health_graph)
 
 
-def _wrap_kb_tool(emit: Callable[[RunEvent], None]) -> FunctionTool:
-    """Wrap search_health_kb to emit tool_call + retrieved_sources."""
+def _mcp_kb_tool(emit: Callable[[RunEvent], None]) -> FunctionTool:
+    """Route search_health_kb through the health_kb MCP server."""
 
     def search_health_kb(query: str, k: int = 5) -> list[dict]:
         """search_health_kb — retrieves authoritative health-guideline chunks.
@@ -244,9 +267,16 @@ def _wrap_kb_tool(emit: Callable[[RunEvent], None]) -> FunctionTool:
         Returns:
             A list of {text, source_url, title, score} dicts.
         """
-        chunks = _kb_search(query, k=k)
+        result = get_manager().call_sync(
+            "health_kb", "search_health_kb", {"query": query, "k": k}
+        )
+        chunks = _parse_mcp_result(result)
         sources = [
-            {"url": c.source_url, "title": c.title, "score": round(c.score, 4)}
+            {
+                "url": c.get("source_url") or "",
+                "title": c.get("title") or "",
+                "score": round(float(c.get("score") or 0), 4),
+            }
             for c in chunks
         ]
         emit(
@@ -258,9 +288,45 @@ def _wrap_kb_tool(emit: Callable[[RunEvent], None]) -> FunctionTool:
                 retrieved_sources=sources,
             )
         )
-        return [c.to_dict() for c in chunks]
+        return chunks
 
     return FunctionTool(search_health_kb)
+
+
+def _mcp_brave_tool(emit: Callable[[RunEvent], None]) -> FunctionTool:
+    """Route web search through the Brave MCP server (when enabled)."""
+
+    def search_brave(query: str, count: int = 5) -> list[dict]:
+        """search_brave — open-web search via the Brave MCP server.
+
+        Args:
+            query: The web search query.
+            count: Number of results to return (default 5).
+
+        Returns:
+            A list of {title, url, description} dicts.
+        """
+        result = get_manager().call_sync(
+            "brave_search", "brave_web_search", {"query": query, "count": count}
+        )
+        # Brave's text content is a human-readable bulleted list; surface it
+        # as a single hit so the agent can quote from it.
+        emit(
+            RunEvent(
+                type="tool_call",
+                role="researcher",
+                tool_name="search_brave",
+                tool_query=str(query),
+            )
+        )
+        out: list[dict] = []
+        for c in getattr(result, "content", None) or []:
+            text = getattr(c, "text", None)
+            if text:
+                out.append({"text": text})
+        return out
+
+    return FunctionTool(search_brave)
 
 
 def _usage_callback(
@@ -275,9 +341,10 @@ def _usage_callback(
         bucket = totals[role]
         bucket["prompt_tokens"] += int(u.get("prompt_tokens") or 0)
         bucket["completion_tokens"] += int(u.get("completion_tokens") or 0)
+        cfg = get_active_config()
         cost = (
-            bucket["prompt_tokens"] * _INPUT_PER_M / 1_000_000
-            + bucket["completion_tokens"] * _OUTPUT_PER_M / 1_000_000
+            bucket["prompt_tokens"] * cfg.input_cost_per_m / 1_000_000
+            + bucket["completion_tokens"] * cfg.output_cost_per_m / 1_000_000
         )
         emit(
             RunEvent(
@@ -296,21 +363,22 @@ def _build_instrumented_workforce(
     emit: Callable[[RunEvent], None],
     totals: Dict[str, Dict[str, int]],
 ) -> Workforce:
-    """Build the Workforce with usage callbacks pinned to each worker and a
-    tool-call-emitting wrapper around the search tool."""
-    web_tool = _wrap_search_tool(emit)
-    kb_tool = _wrap_kb_tool(emit)
-    graph_tool = _wrap_graph_tool(emit)
+    """Build the Workforce with usage callbacks pinned to each worker and
+    MCP-routed retrieval/web tools. Brave is included only when its MCP
+    server is connected (BRAVE_API_KEY set)."""
+    manager = get_manager()
+    researcher_tools = [
+        _mcp_graph_tool(emit),
+        _mcp_kb_tool(emit),
+    ]
+    if manager.is_connected("brave_search"):
+        researcher_tools.append(_mcp_brave_tool(emit))
+    researcher_tools.append(_make_question_tool("researcher", emit))
 
     researcher = ChatAgent(
         system_message=RESEARCHER_PROMPT,
         model=_model(stream=True),
-        tools=[
-            graph_tool,
-            kb_tool,
-            web_tool,
-            _make_question_tool("researcher", emit),
-        ],
+        tools=researcher_tools,
         on_request_usage=_usage_callback("researcher", totals, emit),
     )
     assessor = ChatAgent(
@@ -369,12 +437,29 @@ def start_run(idea: str, biomarkers: Optional[List[dict]] = None) -> str:
 def resolve_question(request_id: str, answer: str) -> bool:
     """Fill the slot of a pending agent-initiated question. Returns False
     if the request_id is unknown (already answered, timed out, or never
-    existed)."""
+    existed).
+
+    Also fires a `human_input_answered` SSE event so the timeline view +
+    DB log capture what the user said back. The current modal doesn't
+    need this event (it dismisses on submit), so it's purely additive.
+    """
     pending = _pending_questions.get(request_id)
     if pending is None or pending["event"].is_set():
         return False
     pending["slot"]["answer"] = answer
     pending["event"].set()
+
+    emit = pending.get("emit")
+    if emit is not None:
+        emit(
+            RunEvent(
+                type="human_input_answered",
+                role=pending.get("role"),
+                request_id=request_id,
+                question=pending.get("question"),
+                answer=answer,
+            )
+        )
     return True
 
 
@@ -397,12 +482,17 @@ def _format_biomarkers(biomarkers: List[dict]) -> str:
 async def _run(task_id: str, idea: str, biomarkers: List[dict]) -> None:
     queue = _queues[task_id]
     loop = asyncio.get_running_loop()
+    cfg = get_active_config()
 
     def emit(event: RunEvent) -> None:
         # Safe from any thread — callbacks may run off-loop.
         loop.call_soon_threadsafe(queue.put_nowait, event)
+        db.append_event_threadsafe(
+            task_id, event.type, event.role, event.model_dump(exclude_none=True)
+        )
 
     try:
+        db.create_run_sync(task_id, idea, cfg.backend.value)
         totals: Dict[str, Dict[str, int]] = defaultdict(
             lambda: {"prompt_tokens": 0, "completion_tokens": 0}
         )
@@ -451,18 +541,33 @@ async def _run(task_id: str, idea: str, biomarkers: List[dict]) -> None:
         _finished_runs[task_id] = FinishedRun(
             profile=idea, biomarkers=biomarkers, memo=memo
         )
+        db.finalize_run_sync(
+            task_id, status="done", memo=memo, cost_usd=_total_cost(totals, cfg)
+        )
 
     except Exception as exc:  # surface failures to the UI instead of hanging
         emit(RunEvent(type="error", text=f"{type(exc).__name__}: {exc}"))
+        db.finalize_run_sync(task_id, status="error")
     finally:
         loop.call_soon_threadsafe(queue.put_nowait, None)
 
 
 def start_follow_up(orig_task_id: str, note: str) -> str:
     """Schedule a 2-stage refinement (Safety Reviewer + Plan Writer) against a
-    previously approved run. Returns the new task_id immediately."""
+    previously approved run. Returns the new task_id immediately.
+
+    Hydrates `_finished_runs` from SQLite if needed — supports follow-ups
+    on runs whose process was restarted since the original completed.
+    """
     if orig_task_id not in _finished_runs:
-        raise ValueError("Unknown task id — original run not found.")
+        row = db.get_run_sync(orig_task_id)
+        if row is None or row.get("status") != "done" or not row.get("memo"):
+            raise ValueError("Unknown task id — original run not found.")
+        _finished_runs[orig_task_id] = FinishedRun(
+            profile=row.get("idea") or "",
+            biomarkers=[],
+            memo=row.get("memo") or "",
+        )
     new_task_id = f"{orig_task_id}-f{uuid.uuid4().hex[:4]}"
     _queues[new_task_id] = asyncio.Queue()
     asyncio.create_task(_run_followup(new_task_id, orig_task_id, note))
@@ -476,12 +581,17 @@ async def _run_followup(new_task_id: str, orig_task_id: str, note: str) -> None:
     prior memo. Cost is ~1/10th of a full run."""
     queue = _queues[new_task_id]
     loop = asyncio.get_running_loop()
+    cfg = get_active_config()
 
     def emit(event: RunEvent) -> None:
         loop.call_soon_threadsafe(queue.put_nowait, event)
+        db.append_event_threadsafe(
+            new_task_id, event.type, event.role, event.model_dump(exclude_none=True)
+        )
 
     try:
         prev = _finished_runs[orig_task_id]
+        db.create_run_sync(new_task_id, f"follow-up of {orig_task_id}: {note}", cfg.backend.value)
         totals: Dict[str, Dict[str, int]] = defaultdict(
             lambda: {"prompt_tokens": 0, "completion_tokens": 0}
         )
@@ -563,9 +673,13 @@ async def _run_followup(new_task_id: str, orig_task_id: str, note: str) -> None:
             biomarkers=prev.biomarkers,
             memo=new_memo,
         )
+        db.finalize_run_sync(
+            new_task_id, status="done", memo=new_memo, cost_usd=_total_cost(totals, cfg)
+        )
 
     except Exception as exc:
         emit(RunEvent(type="error", text=f"{type(exc).__name__}: {exc}"))
+        db.finalize_run_sync(new_task_id, status="error")
     finally:
         loop.call_soon_threadsafe(queue.put_nowait, None)
 

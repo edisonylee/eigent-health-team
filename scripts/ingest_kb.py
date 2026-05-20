@@ -1,13 +1,14 @@
 """Build the health knowledge base.
 
 Pipeline: URLs in data/kb_sources.txt  →  Firecrawl  →  markdown  →  chunks
-(≈500 tokens)  →  local sentence-transformers embeddings  →  Qdrant upsert.
+(≈500 tokens)  →  local sentence-transformers embeddings  →  embedded
+Chroma upsert. No Docker daemon — Chroma runs in-process.
 
 Run:  uv run python -m scripts.ingest_kb [--limit N] [--force]
 
 Requires:
-  - QDRANT_URL (default http://localhost:6333)  — `docker compose up -d qdrant`
-  - FIRECRAWL_API_KEY in .env                    — free tier from firecrawl.dev
+  - FIRECRAWL_API_KEY in .env  — free tier from firecrawl.dev
+  - Optional: HEALTHOS_VECTOR_DIR  — override storage path (default ~/.healthos/vector/)
 """
 
 from __future__ import annotations
@@ -24,9 +25,8 @@ from typing import Iterable, Optional
 
 import tiktoken
 from dotenv import load_dotenv
-from qdrant_client.models import Distance, PointStruct, VectorParams
 
-from src.rag import COLLECTION, EMBED_DIM, embed, qdrant
+from src.rag import _collection, embed
 
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -145,35 +145,21 @@ def chunk_id(url: str, idx: int) -> str:
 # -- main --------------------------------------------------------------------
 
 def ensure_collection() -> None:
-    client = qdrant()
-    existing = {c.name for c in client.get_collections().collections}
-    if COLLECTION not in existing:
-        client.create_collection(
-            collection_name=COLLECTION,
-            vectors_config=VectorParams(size=EMBED_DIM, distance=Distance.COSINE),
-        )
-        print(f"created collection '{COLLECTION}' (dim={EMBED_DIM})")
+    """Chroma's get_or_create_collection is idempotent — nothing extra to do."""
+    _collection()
 
 
 def existing_urls() -> set[str]:
     """All source URLs already represented in the collection."""
-    client = qdrant()
     urls: set[str] = set()
-    offset = None
     try:
-        while True:
-            page, offset = client.scroll(
-                collection_name=COLLECTION,
-                with_payload=["source_url"],
-                limit=512,
-                offset=offset,
-            )
-            for p in page:
-                u = (p.payload or {}).get("source_url")
-                if u:
-                    urls.add(u)
-            if offset is None:
-                break
+        coll = _collection()
+        # Chroma .get(include=['metadatas']) returns every row's metadata.
+        result = coll.get(include=["metadatas"])
+        for m in result.get("metadatas") or []:
+            u = (m or {}).get("source_url")
+            if u:
+                urls.add(u)
     except Exception:
         pass
     return urls
@@ -188,21 +174,20 @@ def ingest_one(url: str) -> int:
     chunks = chunk_markdown(md)
     if not chunks:
         return 0
-    points = [
-        PointStruct(
-            id=chunk_id(url, i),
-            vector=embed(c),
-            payload={
-                "text": c,
-                "source_url": url,
-                "title": title,
-                "chunk_index": i,
-            },
-        )
-        for i, c in enumerate(chunks)
+    coll = _collection()
+    ids = [chunk_id(url, i) for i in range(len(chunks))]
+    embeddings = [embed(c) for c in chunks]
+    metadatas = [
+        {"source_url": url, "title": title, "chunk_index": i}
+        for i in range(len(chunks))
     ]
-    qdrant().upsert(collection_name=COLLECTION, points=points)
-    return len(points)
+    coll.upsert(
+        ids=ids,
+        embeddings=embeddings,
+        documents=chunks,
+        metadatas=metadatas,
+    )
+    return len(chunks)
 
 
 def main(argv: Optional[list[str]] = None) -> int:
@@ -244,12 +229,12 @@ def main(argv: Optional[list[str]] = None) -> int:
             print(f"    ! {type(exc).__name__}: {exc}")
         time.sleep(0.2)  # gentle on Firecrawl
 
-    points = qdrant().count(COLLECTION, exact=True).count
+    total_points = _collection().count()
     print()
     print(f"=== summary ===")
     print(f"sources processed: {ok}  skipped: {skipped}  failed: {len(failed)}")
     print(f"chunks added this run: {total_chunks}")
-    print(f"collection '{COLLECTION}' total points: {points}")
+    print(f"collection total chunks: {total_points}")
     if failed:
         print("\nfailures:")
         for u, e in failed:

@@ -2,30 +2,34 @@
 
 Embeddings run **locally** via sentence-transformers (no network, no key),
 so user query text never leaves the box for retrieval. The vector store is
-a Qdrant instance (default `http://localhost:6333`, brought up via
-`docker compose up -d qdrant`).
+**embedded Chroma** — no Docker daemon required. Storage lives in
+`~/.healthos/vector/` (override via `HEALTHOS_VECTOR_DIR`).
+
+A pre-built KB snapshot can be shipped at `data/health_kb_chroma/`;
+first launch copies it to the user data dir so the app is usable
+out of the box without re-running the Firecrawl ingest pipeline.
 """
 
 from __future__ import annotations
 
 import os
+import pathlib
+import shutil
 from dataclasses import asdict, dataclass
 from functools import lru_cache
 from typing import List
 
-from qdrant_client import QdrantClient
+import chromadb
+from chromadb.config import Settings
 from sentence_transformers import SentenceTransformer
 
 COLLECTION = "health_kb"
 EMBED_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
-EMBED_DIM = 384  # all-MiniLM-L6-v2 produces 384-dim embeddings
-QDRANT_URL = os.environ.get("QDRANT_URL", "http://localhost:6333")
+EMBED_DIM = 384
 
 
 @dataclass
 class Chunk:
-    """One retrieved passage from the health KB."""
-
     text: str
     source_url: str
     title: str
@@ -35,15 +39,63 @@ class Chunk:
         return asdict(self)
 
 
+def _vector_dir() -> pathlib.Path:
+    p = pathlib.Path(
+        os.environ.get("HEALTHOS_VECTOR_DIR")
+        or (pathlib.Path.home() / ".healthos" / "vector")
+    ).expanduser()
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def _bundled_seed() -> pathlib.Path:
+    return pathlib.Path(__file__).resolve().parent.parent / "data" / "health_kb_chroma"
+
+
+def _maybe_seed_from_bundle(target: pathlib.Path) -> None:
+    """Copy a shipped Chroma snapshot into the user data dir on first run.
+
+    No-op if the user already has data, or if no bundle is shipped. This is
+    what makes the desktop build usable without running Firecrawl.
+    """
+    if any(target.iterdir()):
+        return
+    seed = _bundled_seed()
+    if not seed.is_dir():
+        return
+    try:
+        for child in seed.iterdir():
+            dest = target / child.name
+            if child.is_dir():
+                shutil.copytree(child, dest, dirs_exist_ok=True)
+            else:
+                shutil.copy2(child, dest)
+    except Exception:
+        # Seeding is best-effort — if it fails, the app still works against
+        # an empty KB (Researcher gracefully degrades to graph + web).
+        pass
+
+
 @lru_cache(maxsize=1)
 def embedder() -> SentenceTransformer:
-    """Load the local embedding model once. ~25 MB, CPU-friendly."""
     return SentenceTransformer(EMBED_MODEL_NAME)
 
 
 @lru_cache(maxsize=1)
-def qdrant() -> QdrantClient:
-    return QdrantClient(url=QDRANT_URL)
+def chroma() -> chromadb.Client:
+    vdir = _vector_dir()
+    _maybe_seed_from_bundle(vdir)
+    return chromadb.PersistentClient(
+        path=str(vdir),
+        settings=Settings(anonymized_telemetry=False, allow_reset=False),
+    )
+
+
+def _collection():
+    return chroma().get_or_create_collection(
+        name=COLLECTION,
+        metadata={"hnsw:space": "cosine"},
+    )
 
 
 def embed(text: str) -> list[float]:
@@ -53,30 +105,36 @@ def embed(text: str) -> list[float]:
 def search_health_kb(query: str, k: int = 5) -> List[Chunk]:
     """Top-k semantically relevant chunks from the curated health KB.
 
-    Returns an empty list if the collection doesn't exist (e.g. before
-    ingestion). The Researcher agent calls this; safe-to-fail keeps the
-    Workforce running if Qdrant is down or unpopulated.
+    Returns an empty list on any failure (collection missing, store
+    corrupted, etc). Safe-to-fail keeps the Workforce running.
     """
     try:
         vec = embed(query)
-        hits = qdrant().query_points(
-            collection_name=COLLECTION,
-            query=vec,
-            limit=k,
-            with_payload=True,
-        ).points
+        coll = _collection()
+        if coll.count() == 0:
+            return []
+        result = coll.query(
+            query_embeddings=[vec],
+            n_results=k,
+            include=["documents", "metadatas", "distances"],
+        )
     except Exception:
         return []
 
     out: list[Chunk] = []
-    for h in hits:
-        payload = h.payload or {}
+    docs = (result.get("documents") or [[]])[0]
+    metas = (result.get("metadatas") or [[]])[0]
+    dists = (result.get("distances") or [[]])[0]
+    for doc, meta, dist in zip(docs, metas, dists):
+        meta = meta or {}
+        # cosine distance ∈ [0, 2]; convert to similarity score in [-1, 1].
+        score = max(0.0, 1.0 - float(dist or 0.0))
         out.append(
             Chunk(
-                text=str(payload.get("text", "")),
-                source_url=str(payload.get("source_url", "")),
-                title=str(payload.get("title", "")),
-                score=float(h.score or 0.0),
+                text=str(doc or ""),
+                source_url=str(meta.get("source_url", "")),
+                title=str(meta.get("title", "")),
+                score=score,
             )
         )
     return out

@@ -13,9 +13,8 @@ parsing is a deterministic, single-shot job, not a collaborative one.
 from __future__ import annotations
 
 from camel.agents import ChatAgent
-from camel.models import ModelFactory
-from camel.types import ModelPlatformType, ModelType
 
+from .model_config import build_model
 from .schema import BiomarkerPanel
 
 LAB_PARSER_PROMPT = """You are a careful lab-report parser. Given the raw
@@ -44,12 +43,10 @@ Output the typed BiomarkerPanel schema."""
 
 
 def lab_parser_agent() -> ChatAgent:
-    model = ModelFactory.create(
-        model_platform=ModelPlatformType.OPENAI,
-        model_type=ModelType.GPT_4O,
-        model_config_dict={"temperature": 0.0},
+    return ChatAgent(
+        system_message=LAB_PARSER_PROMPT,
+        model=build_model(stream=False, temperature=0.0),
     )
-    return ChatAgent(system_message=LAB_PARSER_PROMPT, model=model)
 
 
 def parse_labs(raw_text: str) -> BiomarkerPanel:

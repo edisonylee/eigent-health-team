@@ -9,6 +9,7 @@ EventType = Literal[
     "worker_usage",
     "tool_call",
     "human_input_required",
+    "human_input_answered",
     "task_complete",
     "error",
 ]
@@ -45,3 +46,5 @@ class RunEvent(BaseModel):
     question: Optional[str] = None
     choices: Optional[list[str]] = None
     request_id: Optional[str] = None
+    # human_input_answered: the user's reply (or "use your best judgment").
+    answer: Optional[str] = None

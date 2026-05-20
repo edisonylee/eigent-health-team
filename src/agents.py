@@ -7,33 +7,12 @@ All agents are educational only. None of them diagnose or replace a clinician.
 """
 
 from camel.agents import ChatAgent
-from camel.models import ModelFactory
 from camel.toolkits import FunctionTool, SearchToolkit
-from camel.types import ModelPlatformType, ModelType
 
 from .graph_rag import search_health_graph as _graph_search
+from .model_config import build_model as _model
 from .rag import search_health_kb as _kb_search
 from .schema import SafetyReview
-
-
-def _model(stream: bool = False):
-    """One model backend per agent. Low temperature — this is careful guidance.
-
-    stream=True enables token streaming so the Workforce stream callback emits
-    incremental chunks (used by the web UI). The CLI leaves it False.
-
-    `stream_options.include_usage=True` is required to receive token usage in
-    streaming responses — otherwise the `on_request_usage` callback fires with
-    zeros, and the live cost ticker stays at $0.
-    """
-    config: dict = {"temperature": 0.2, "stream": stream}
-    if stream:
-        config["stream_options"] = {"include_usage": True}
-    return ModelFactory.create(
-        model_platform=ModelPlatformType.OPENAI,
-        model_type=ModelType.GPT_4O,
-        model_config_dict=config,
-    )
 
 
 RESEARCHER_PROMPT = """You are a health researcher.
@@ -49,7 +28,7 @@ RESEARCHER_PROMPT = """You are a health researcher.
 [your bulleted research brief]
 ```
 
-You have THREE retrieval tools and pick per question:
+You have retrieval tools, served over MCP. Pick the right one per question:
 
   • `query_health_graph(query)` — a curated knowledge graph of nutrients,
     conditions, biomarkers, foods, and exercise classes with typed
@@ -63,9 +42,11 @@ You have THREE retrieval tools and pick per question:
     Clinic). PREFER THIS for GUIDELINE questions: "how much vitamin D is
     recommended for adults", "what's the AHA exercise guidance".
 
-  • `search_duckduckgo(query)` — the open web. Use ONLY for fresh or
-    specific things the curated sources won't have: product names,
-    brand-specific info, very recent studies, niche conditions.
+  • `search_brave(query)` — the open web, via the Brave Search MCP
+    server. ONLY available when configured. Use for fresh or specific
+    things the curated sources won't have: product names, brand-specific
+    info, very recent studies, niche conditions. If this tool isn't
+    available, rely on the curated sources above.
 
 You also have a `request_human_input(question, choices)` tool. CALL it
 when the profile leaves out a fact you genuinely need — e.g. the profile

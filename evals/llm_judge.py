@@ -21,10 +21,9 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
 from camel.agents import ChatAgent
-from camel.models import ModelFactory
 from camel.tasks import Task
-from camel.types import ModelPlatformType, ModelType
 
+from src.model_config import build_model
 from src.workforce import build_workforce
 
 
@@ -60,12 +59,10 @@ four dimensions:
 
 
 def _judge_agent() -> ChatAgent:
-    model = ModelFactory.create(
-        model_platform=ModelPlatformType.OPENAI,
-        model_type=ModelType.GPT_4O,
-        model_config_dict={"temperature": 0.0},
+    return ChatAgent(
+        system_message=JUDGE_PROMPT,
+        model=build_model(stream=False, temperature=0.0),
     )
-    return ChatAgent(system_message=JUDGE_PROMPT, model=model)
 
 
 def _generate_plan(profile: str) -> str:

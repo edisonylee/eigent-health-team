@@ -2,9 +2,11 @@
 the built React frontend as a single deployable service.
 """
 
+import csv
 import io
 import os
 import pathlib
+from contextlib import asynccontextmanager
 from typing import Optional
 
 from dotenv import load_dotenv
@@ -15,6 +17,9 @@ from pydantic import BaseModel
 from pypdf import PdfReader
 from sse_starlette.sse import EventSourceResponse
 
+from . import db
+from .mcp_manager import get_manager as get_mcp_manager
+
 from src.agents import (
     ASSESSOR_PROMPT,
     PLAN_PROMPT,
@@ -22,6 +27,13 @@ from src.agents import (
     SAFETY_PROMPT,
 )
 from src.lab_parser import parse_labs
+from src.model_config import (
+    ModelBackend,
+    ModelConfig,
+    get_active_config,
+    probe_status,
+    set_active_config,
+)
 
 from .runner import (
     event_stream,
@@ -36,7 +48,45 @@ load_dotenv()
 
 APP_PASSWORD = os.environ.get("APP_PASSWORD", "dev")
 
-app = FastAPI(title="Eigent Personalized Health Team")
+
+# Setting keys persisted in the `setting` table.
+_SK_BACKEND = "model.backend"
+_SK_OPENAI_MODEL = "model.openai_model"
+_SK_OLLAMA_MODEL = "model.ollama_model"
+_SK_OLLAMA_HOST = "model.ollama_host"
+
+
+async def _hydrate_model_config() -> None:
+    """Load model settings from SQLite into the active in-memory config."""
+    backend = await db.get_setting(_SK_BACKEND)
+    if backend is None:
+        return
+    current = get_active_config()
+    try:
+        new = ModelConfig(
+            backend=ModelBackend(backend),
+            openai_model=(await db.get_setting(_SK_OPENAI_MODEL)) or current.openai_model,
+            ollama_model=(await db.get_setting(_SK_OLLAMA_MODEL)) or current.ollama_model,
+            ollama_host=(await db.get_setting(_SK_OLLAMA_HOST)) or current.ollama_host,
+        )
+        set_active_config(new)
+    except ValueError:
+        pass
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    await db.init_schema()
+    await _hydrate_model_config()
+    mcp = get_mcp_manager()
+    await mcp.startup()
+    try:
+        yield
+    finally:
+        await mcp.shutdown()
+
+
+app = FastAPI(title="Eigent Personalized Health Team", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -61,6 +111,14 @@ class AnswerRequest(BaseModel):
 class FollowUpRequest(BaseModel):
     note: str
     password: str
+
+
+class ModelSettingsRequest(BaseModel):
+    password: str
+    backend: str
+    openai_model: Optional[str] = None
+    ollama_model: Optional[str] = None
+    ollama_host: Optional[str] = None
 
 
 @app.post("/api/run")
@@ -154,6 +212,172 @@ async def events(task_id: str) -> EventSourceResponse:
 @app.get("/api/health")
 def health() -> dict:
     return {"ok": True}
+
+
+@app.get("/api/model/status")
+def model_status() -> dict:
+    """Active backend + probed availability. Drives the onboarding modal + settings UI."""
+    return probe_status()
+
+
+@app.post("/api/model/settings")
+async def model_settings(req: ModelSettingsRequest) -> dict:
+    """Hot-swap the active model config + persist to SQLite."""
+    if req.password != APP_PASSWORD:
+        raise HTTPException(status_code=401, detail="Wrong password.")
+    try:
+        backend = ModelBackend(req.backend)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Unknown backend: {req.backend}")
+
+    current = get_active_config()
+    new = ModelConfig(
+        backend=backend,
+        openai_model=req.openai_model or current.openai_model,
+        ollama_model=req.ollama_model or current.ollama_model,
+        ollama_host=req.ollama_host or current.ollama_host,
+    )
+    set_active_config(new)
+    await db.set_setting(_SK_BACKEND, new.backend.value)
+    await db.set_setting(_SK_OPENAI_MODEL, new.openai_model)
+    await db.set_setting(_SK_OLLAMA_MODEL, new.ollama_model)
+    await db.set_setting(_SK_OLLAMA_HOST, new.ollama_host)
+    return probe_status()
+
+
+# --- run history + timeline ---------------------------------------------------
+
+
+@app.get("/api/runs")
+async def runs(limit: int = 20) -> dict:
+    return {"runs": await db.list_runs(limit)}
+
+
+@app.get("/api/runs/{task_id}")
+async def run_detail(task_id: str) -> dict:
+    row = await db.get_run(task_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="run not found")
+    return row
+
+
+@app.get("/api/runs/{task_id}/timeline")
+async def run_timeline(task_id: str) -> dict:
+    row = await db.get_run(task_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="run not found")
+    return {"task_id": task_id, "events": await db.get_timeline(task_id)}
+
+
+# --- profile ------------------------------------------------------------------
+
+
+class ProfileRequest(BaseModel):
+    password: str
+    name: Optional[str] = None
+    dob: Optional[str] = None
+    sex: Optional[str] = None
+    height_cm: Optional[float] = None
+    weight_kg: Optional[float] = None
+    notes: Optional[str] = None
+
+
+@app.get("/api/profile")
+async def profile_get() -> dict:
+    p = await db.get_profile()
+    return p or {}
+
+
+@app.post("/api/profile")
+async def profile_post(req: ProfileRequest) -> dict:
+    if req.password != APP_PASSWORD:
+        raise HTTPException(status_code=401, detail="Wrong password.")
+    data = req.model_dump(exclude={"password"}, exclude_none=True)
+    return await db.upsert_profile(data)
+
+
+# --- check-ins ----------------------------------------------------------------
+
+
+class CheckInRequest(BaseModel):
+    password: str
+    day: Optional[str] = None
+    energy: Optional[int] = None
+    sleep_hours: Optional[float] = None
+    mood: Optional[int] = None
+    adherence_notes: Optional[str] = None
+
+
+# --- MCP servers --------------------------------------------------------------
+
+
+class MCPReconnectRequest(BaseModel):
+    password: str
+
+
+@app.get("/api/mcp/servers")
+def mcp_servers() -> dict:
+    return {"servers": get_mcp_manager().status()}
+
+
+@app.post("/api/mcp/servers/{name}/reconnect")
+async def mcp_reconnect(name: str, req: MCPReconnectRequest) -> dict:
+    if req.password != APP_PASSWORD:
+        raise HTTPException(status_code=401, detail="Wrong password.")
+    mgr = get_mcp_manager()
+    try:
+        await mgr.reconnect(name)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Unknown MCP server: {name}")
+    return {"servers": mgr.status()}
+
+
+@app.get("/api/evals")
+def evals_dashboard() -> dict:
+    """Read evals/results.csv into a tabular response with per-criterion means."""
+    path = pathlib.Path(__file__).resolve().parent.parent / "evals" / "results.csv"
+    rows: list[dict] = []
+    if path.exists():
+        with path.open() as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                def _i(k: str) -> int:
+                    try:
+                        return int(row.get(k) or 0)
+                    except ValueError:
+                        return 0
+                rows.append(
+                    {
+                        "ts": row.get("timestamp") or "",
+                        "profile": row.get("profile") or "",
+                        "coherence": _i("coherence"),
+                        "actionability": _i("actionability"),
+                        "safety": _i("safety"),
+                        "personalization": _i("personalization"),
+                        "one_line_summary": row.get("summary") or "",
+                    }
+                )
+    criteria = ("coherence", "actionability", "safety", "personalization")
+    means: dict[str, float] = {}
+    if rows:
+        for c in criteria:
+            means[c] = sum(r[c] for r in rows) / len(rows)
+    else:
+        means = {c: 0.0 for c in criteria}
+    return {"rows": rows, "means": means}
+
+
+@app.get("/api/check_ins")
+async def check_ins_get(limit: int = 30) -> dict:
+    return {"check_ins": await db.list_check_ins(limit)}
+
+
+@app.post("/api/check_ins")
+async def check_ins_post(req: CheckInRequest) -> dict:
+    if req.password != APP_PASSWORD:
+        raise HTTPException(status_code=401, detail="Wrong password.")
+    data = req.model_dump(exclude={"password"}, exclude_none=True)
+    return await db.add_check_in(data)
 
 
 @app.get("/api/prompts")
