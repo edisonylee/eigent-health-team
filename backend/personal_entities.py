@@ -221,16 +221,42 @@ def _upsert_entity_sync(name: str, type_: str, canonical_id: Optional[str]) -> i
 
 
 def _add_mention_sync(
-    entity_id: int, source_kind: str, source_id: str, snippet: Optional[str]
+    entity_id: int,
+    source_kind: str,
+    source_id: str,
+    snippet: Optional[str],
+    ts: Optional[float] = None,
 ) -> None:
+    """Insert one mention row. `ts` defaults to now; pass an explicit value
+    when backfilling so same-day co-occurrence reflects when the underlying
+    event actually happened, not when extraction ran."""
     with _connect() as conn:
         conn.execute(
             "INSERT INTO entity_mention"
             "(entity_id, source_kind, source_id, context_snippet, ts) "
             "VALUES(?, ?, ?, ?, ?)",
-            (entity_id, source_kind, source_id, snippet[:240] if snippet else None, time.time()),
+            (
+                entity_id,
+                source_kind,
+                source_id,
+                snippet[:240] if snippet else None,
+                ts if ts is not None else time.time(),
+            ),
         )
         conn.commit()
+
+
+def _day_to_ts(day: Optional[str]) -> Optional[float]:
+    """Convert a YYYY-MM-DD string to a unix ts at local noon, so the day
+    bucket math is unambiguous across DST and timezone math."""
+    if not day:
+        return None
+    try:
+        import datetime as _dt
+        d = _dt.datetime.strptime(day, "%Y-%m-%d")
+        return _dt.datetime(d.year, d.month, d.day, 12, 0, 0).timestamp()
+    except Exception:
+        return None
 
 
 def _snippet_around(text: str, term: str, width: int = 200) -> str:
@@ -244,17 +270,182 @@ def _snippet_around(text: str, term: str, width: int = 200) -> str:
     return text[start:end].strip()
 
 
-def index_text_sync(text: str, source_kind: str, source_id: str) -> int:
-    """Extract from `text` + persist mentions. Returns number of entities indexed."""
+def index_text_sync(
+    text: str,
+    source_kind: str,
+    source_id: str,
+    ts: Optional[float] = None,
+) -> int:
+    """Extract from `text` + persist mentions. Returns number of entities indexed.
+
+    `ts` is forwarded to each mention so backfilled extraction reflects when
+    the underlying event happened (e.g. a check-in's `day`) rather than
+    extraction time."""
     entities = extract_entities(text)
     for ent in entities:
         eid = _upsert_entity_sync(ent["name"], ent["type"], ent.get("canonical_id"))
-        _add_mention_sync(eid, source_kind, source_id, _snippet_around(text, ent["name"]))
+        _add_mention_sync(
+            eid, source_kind, source_id, _snippet_around(text, ent["name"]), ts=ts
+        )
     return len(entities)
 
 
-async def index_text(text: str, source_kind: str, source_id: str) -> int:
-    return await asyncio.to_thread(index_text_sync, text, source_kind, source_id)
+async def index_text(
+    text: str, source_kind: str, source_id: str, ts: Optional[float] = None
+) -> int:
+    return await asyncio.to_thread(index_text_sync, text, source_kind, source_id, ts)
+
+
+# ---------- Observation buckets (scalar check-in / event fields) ----------
+#
+# Mood and energy are 1–5 scales (see frontend/src/routes/CheckIn.tsx).
+# Sleep is hours (float, 0–16). We coerce each scalar into one of three
+# stable buckets and surface them as `type="observation"` nodes so the
+# graph can show co-occurrence between named entities (e.g. magnesium)
+# and recurring states (e.g. high sleep) without exploding into one node
+# per check-in.
+
+def _bucket_sleep_hours(hours: Optional[float]) -> Optional[str]:
+    if hours is None:
+        return None
+    if hours <= 6.0:
+        return "low sleep"
+    if hours >= 8.0:
+        return "high sleep"
+    return "mid sleep"
+
+
+def _bucket_1_to_5(value: Optional[int], label: str) -> Optional[str]:
+    if value is None:
+        return None
+    if value <= 2:
+        return f"low {label}"
+    if value >= 4:
+        return f"high {label}"
+    return f"mid {label}"
+
+
+def _record_observation_sync(
+    name: str,
+    snippet: str,
+    source_kind: str,
+    source_id: str,
+    ts: Optional[float] = None,
+) -> None:
+    eid = _upsert_entity_sync(name, "observation", None)
+    _add_mention_sync(eid, source_kind, source_id, snippet, ts=ts)
+
+
+def index_check_in_observations_sync(check_in_id: int) -> int:
+    """Bucket and record the scalar fields of one check-in as observation
+    mentions. Returns the number of observations recorded (0–3)."""
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT id, day, energy, sleep_hours, mood FROM check_in WHERE id = ?",
+            (check_in_id,),
+        ).fetchone()
+    if not row:
+        return 0
+    n = 0
+    sid = str(row["id"])
+    day = row["day"] or ""
+    ts = _day_to_ts(day)
+    sleep_bucket = _bucket_sleep_hours(row["sleep_hours"])
+    if sleep_bucket:
+        _record_observation_sync(
+            sleep_bucket,
+            f"{day}: {row['sleep_hours']}h sleep",
+            "check_in_observation",
+            sid,
+            ts=ts,
+        )
+        n += 1
+    energy_bucket = _bucket_1_to_5(row["energy"], "energy")
+    if energy_bucket:
+        _record_observation_sync(
+            energy_bucket,
+            f"{day}: energy {row['energy']}/5",
+            "check_in_observation",
+            sid,
+            ts=ts,
+        )
+        n += 1
+    mood_bucket = _bucket_1_to_5(row["mood"], "mood")
+    if mood_bucket:
+        _record_observation_sync(
+            mood_bucket,
+            f"{day}: mood {row['mood']}/5",
+            "check_in_observation",
+            sid,
+            ts=ts,
+        )
+        n += 1
+    return n
+
+
+def _event_observation_for(category: str, meta: dict) -> Optional[tuple[str, str]]:
+    """Try to read a scalar out of an event's meta blob and bucket it.
+    Returns (bucket_name, snippet) or None when the event isn't scalar-shaped."""
+    if not isinstance(meta, dict):
+        return None
+    if category == "sleep":
+        hours = meta.get("hours") or meta.get("sleep_hours") or meta.get("duration_h")
+        try:
+            hours_f = float(hours) if hours is not None else None
+        except (TypeError, ValueError):
+            hours_f = None
+        bucket = _bucket_sleep_hours(hours_f)
+        if bucket:
+            return bucket, f"{hours_f}h sleep (logged)"
+    if category == "mood":
+        score = meta.get("score") or meta.get("value") or meta.get("mood")
+        try:
+            score_i = int(score) if score is not None else None
+        except (TypeError, ValueError):
+            score_i = None
+        bucket = _bucket_1_to_5(score_i, "mood")
+        if bucket:
+            return bucket, f"mood {score_i}/5 (logged)"
+    if category == "symptom":
+        severity = meta.get("severity")
+        try:
+            sev_i = int(severity) if severity is not None else None
+        except (TypeError, ValueError):
+            sev_i = None
+        bucket = _bucket_1_to_5(sev_i, "symptom severity")
+        if bucket:
+            return bucket, f"symptom severity {sev_i}/5"
+    return None
+
+
+def index_event_observation_sync(event_id: int) -> int:
+    """If an event row carries a scalar in its meta blob, record an
+    observation mention. Returns 1 if recorded, 0 otherwise."""
+    import json as _json
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT id, category, meta_json FROM event WHERE id = ?",
+            (event_id,),
+        ).fetchone()
+    if not row:
+        return 0
+    try:
+        meta = _json.loads(row["meta_json"]) if row["meta_json"] else {}
+    except Exception:
+        meta = {}
+    parsed = _event_observation_for(row["category"], meta)
+    if not parsed:
+        return 0
+    bucket, snippet = parsed
+    # Events carry their own ts; use it so observations join other
+    # same-day mentions in the graph's edge math.
+    ev_ts = None
+    with _connect() as conn:
+        ts_row = conn.execute("SELECT ts FROM event WHERE id = ?", (event_id,)).fetchone()
+        if ts_row:
+            ev_ts = ts_row["ts"]
+    _record_observation_sync(bucket, snippet, "event_observation", str(row["id"]), ts=ev_ts)
+    return 1
 
 
 def index_biomarker_ids_sync(row_ids: list[int]) -> int:
@@ -301,24 +492,31 @@ def index_existing_data_sync() -> dict:
     }
 
     with _connect() as conn:
-        # Plan memos
+        # Plan memos — stamp under the run's start time so same-day edges
+        # land on the day the plan was actually generated.
         rows = conn.execute(
-            "SELECT task_id, memo FROM run WHERE memo IS NOT NULL AND memo != ''"
+            "SELECT task_id, memo, started_at FROM run "
+            "WHERE memo IS NOT NULL AND memo != ''"
         ).fetchall()
         for r in rows:
-            n = index_text_sync(r["memo"], "run_memo", r["task_id"])
+            n = index_text_sync(r["memo"], "run_memo", r["task_id"], ts=r["started_at"])
             counts["run_memos"] += n
 
-        # Check-in adherence notes
+        # Check-in adherence notes — stamp under the check-in's day so
+        # observations and notes from the same check-in match in the
+        # same-day co-occurrence query.
         rows = conn.execute(
-            "SELECT id, adherence_notes FROM check_in "
+            "SELECT id, day, adherence_notes FROM check_in "
             "WHERE adherence_notes IS NOT NULL AND adherence_notes != ''"
         ).fetchall()
         for r in rows:
-            n = index_text_sync(r["adherence_notes"], "check_in_note", str(r["id"]))
+            n = index_text_sync(
+                r["adherence_notes"], "check_in_note", str(r["id"]),
+                ts=_day_to_ts(r["day"]),
+            )
             counts["check_ins"] += n
 
-        # Profile notes
+        # Profile notes — single row, no natural date; stamp with now.
         prow = conn.execute(
             "SELECT id, notes FROM profile WHERE notes IS NOT NULL AND notes != '' LIMIT 1"
         ).fetchone()
@@ -326,9 +524,10 @@ def index_existing_data_sync() -> dict:
             n = index_text_sync(prow["notes"], "profile_note", str(prow["id"]))
             counts["profile"] += n
 
-        # Lab biomarker names — direct upserts (not text extraction)
+        # Lab biomarker names — direct upserts (not text extraction).
+        # Stamp under the biomarker's recorded_at so labs cluster by draw date.
         for r in conn.execute(
-            "SELECT id, name, value, unit, flag FROM biomarker"
+            "SELECT id, name, value, unit, flag, recorded_at FROM biomarker"
         ).fetchall():
             display = r["name"]
             cid = _canonical_index().get(display.lower())
@@ -338,19 +537,32 @@ def index_existing_data_sync() -> dict:
             unit = r["unit"] or ""
             flag = r["flag"] or "unknown"
             snippet = f"{display}: {r['value']} {unit} [{flag}]"
-            _add_mention_sync(eid, "lab_biomarker", str(r["id"]), snippet)
+            _add_mention_sync(
+                eid, "lab_biomarker", str(r["id"]), snippet, ts=r["recorded_at"]
+            )
             counts["biomarkers"] += 1
 
         # Events — any free-form description (notes, symptoms, meals, etc.)
         # The `note` category is the most prose-heavy, but everything with
         # a description carries entity signal worth extracting.
         for r in conn.execute(
-            "SELECT id, category, description FROM event "
+            "SELECT id, category, description, ts FROM event "
             "WHERE description IS NOT NULL AND description != ''"
         ).fetchall():
             text = f"[{r['category']}] {r['description']}"
-            n = index_text_sync(text, "event_note", str(r["id"]))
+            n = index_text_sync(text, "event_note", str(r["id"]), ts=r["ts"])
             counts["events"] += n
+
+    # Observation buckets — scalar fields from check-ins and events.
+    # Done outside the SQL loop so each helper can open its own cursor.
+    counts["observations"] = 0
+    with _connect() as conn:
+        check_in_ids = [r["id"] for r in conn.execute("SELECT id FROM check_in").fetchall()]
+        event_ids = [r["id"] for r in conn.execute("SELECT id FROM event").fetchall()]
+    for cid in check_in_ids:
+        counts["observations"] += index_check_in_observations_sync(cid)
+    for eid in event_ids:
+        counts["observations"] += index_event_observation_sync(eid)
 
     return counts
 
@@ -397,7 +609,15 @@ def get_graph_data_sync(min_mentions: int = 1) -> dict:
         ]
         node_ids = {n["id"] for n in nodes}
 
-        link_rows = conn.execute(
+        # Edge weights come from two sources, merged in Python:
+        #   1. Same-source co-mention (existing) — two entities appearing in
+        #      the same memo/note/event/biomarker row.
+        #   2. Same-day co-occurrence — two entities appearing on the same
+        #      calendar day across *different* sources. This is what lets a
+        #      check-in "low sleep" observation link to a "magnesium"
+        #      mention pulled from that day's check-in note (or biomarker,
+        #      or event log).
+        same_source = conn.execute(
             """
             SELECT m1.entity_id AS a, m2.entity_id AS b, COUNT(*) AS w
             FROM entity_mention m1
@@ -406,15 +626,39 @@ def get_graph_data_sync(min_mentions: int = 1) -> dict:
              AND m1.source_id   = m2.source_id
              AND m1.entity_id   < m2.entity_id
             GROUP BY m1.entity_id, m2.entity_id
-            HAVING COUNT(*) >= 1
             ORDER BY w DESC
-            LIMIT 500
+            LIMIT 1000
             """
         ).fetchall()
+
+        same_day = conn.execute(
+            """
+            SELECT m1.entity_id AS a, m2.entity_id AS b,
+                   COUNT(DISTINCT date(m1.ts, 'unixepoch', 'localtime')) AS w
+            FROM entity_mention m1
+            JOIN entity_mention m2
+              ON m1.entity_id < m2.entity_id
+             AND date(m1.ts, 'unixepoch', 'localtime')
+               = date(m2.ts, 'unixepoch', 'localtime')
+             AND NOT (m1.source_kind = m2.source_kind AND m1.source_id = m2.source_id)
+            GROUP BY m1.entity_id, m2.entity_id
+            HAVING COUNT(DISTINCT date(m1.ts, 'unixepoch', 'localtime')) >= 2
+            ORDER BY w DESC
+            LIMIT 1000
+            """
+        ).fetchall()
+
+        from collections import defaultdict
+        weights: dict[tuple[int, int], int] = defaultdict(int)
+        for r in same_source:
+            weights[(r["a"], r["b"])] += r["w"]
+        for r in same_day:
+            weights[(r["a"], r["b"])] += r["w"]
+
         links = [
-            {"source": r["a"], "target": r["b"], "value": r["w"]}
-            for r in link_rows
-            if r["a"] in node_ids and r["b"] in node_ids
+            {"source": a, "target": b, "value": w}
+            for (a, b), w in sorted(weights.items(), key=lambda kv: -kv[1])[:500]
+            if a in node_ids and b in node_ids
         ]
 
     return {"nodes": nodes, "links": links}
@@ -447,3 +691,56 @@ def get_entity_mentions_sync(entity_id: int, limit: int = 50) -> dict:
 
 async def get_entity_mentions(entity_id: int, limit: int = 50) -> dict:
     return await asyncio.to_thread(get_entity_mentions_sync, entity_id, limit)
+
+
+def search_personal_entities_sync(
+    query: str, limit: int = 8, mentions_per_entity: int = 3
+) -> list[dict]:
+    """Free-text search across the user's personal memory graph.
+
+    Matches `personal_entity.name` LIKE `%query%` (case-insensitive). For each
+    hit, returns the entity row plus its `mentions_per_entity` most recent
+    mention snippets. Used by the Health Researcher's `query_personal_graph`
+    tool to ask "what do we know about THIS user's <topic>?" before falling
+    back to the canonical KB.
+    """
+    q = (query or "").strip()
+    if not q:
+        return []
+    like = f"%{q.lower()}%"
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT id, name, type, canonical_id, mention_count, first_seen, last_seen "
+            "FROM personal_entity WHERE LOWER(name) LIKE ? "
+            "ORDER BY mention_count DESC LIMIT ?",
+            (like, limit),
+        ).fetchall()
+        out: list[dict] = []
+        for r in rows:
+            mention_rows = conn.execute(
+                "SELECT source_kind, source_id, context_snippet, ts "
+                "FROM entity_mention WHERE entity_id = ? "
+                "ORDER BY ts DESC LIMIT ?",
+                (r["id"], mentions_per_entity),
+            ).fetchall()
+            out.append(
+                {
+                    "id": r["id"],
+                    "name": r["name"],
+                    "type": r["type"],
+                    "canonical_id": r["canonical_id"],
+                    "mention_count": r["mention_count"],
+                    "first_seen": r["first_seen"],
+                    "last_seen": r["last_seen"],
+                    "recent_mentions": [
+                        {
+                            "source_kind": m["source_kind"],
+                            "source_id": m["source_id"],
+                            "snippet": m["context_snippet"],
+                            "ts": m["ts"],
+                        }
+                        for m in mention_rows
+                    ],
+                }
+            )
+        return out

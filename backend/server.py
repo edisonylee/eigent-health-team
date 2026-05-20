@@ -45,6 +45,7 @@ from .runner import (
     event_stream,
     rate_limited,
     resolve_question,
+    start_ask,
     start_follow_up,
     start_run,
 )
@@ -155,6 +156,25 @@ async def run(req: RunRequest) -> dict:
             status_code=429, detail="Hourly run limit reached. Try again later."
         )
     return {"task_id": start_run(req.idea.strip(), req.biomarkers)}
+
+
+class AskRequest(BaseModel):
+    question: str
+    password: str
+
+
+@app.post("/api/ask")
+async def ask(req: AskRequest) -> dict:
+    """Single-agent Q&A grounded in the profile synthesis. No Workforce."""
+    if not _password_ok(req.password):
+        raise HTTPException(status_code=401, detail="Wrong password.")
+    if not req.question.strip():
+        raise HTTPException(status_code=400, detail="Question is empty.")
+    if rate_limited():
+        raise HTTPException(
+            status_code=429, detail="Hourly run limit reached. Try again later."
+        )
+    return {"task_id": start_ask(req.question.strip())}
 
 
 @app.post("/api/run/{task_id}/answer")
@@ -536,6 +556,22 @@ async def check_ins_post(req: CheckInRequest) -> dict:
     # the request. Same daemon-thread pattern as runner._spawn_entity_extract.
     from . import profile_synthesis
     profile_synthesis.spawn_profile_synthesis()
+
+    # Bucket and index the scalar fields (energy / sleep / mood) as
+    # observation nodes so the memory graph reflects how the user actually
+    # felt, not just what they wrote about. Free-text adherence_notes are
+    # picked up by profile_synthesis above.
+    check_in_id = int(row["id"])
+
+    def _bg() -> None:
+        try:
+            from . import personal_entities as _pe
+
+            _pe.index_check_in_observations_sync(check_in_id)
+        except Exception:
+            pass
+
+    threading.Thread(target=_bg, daemon=True).start()
     return row
 
 

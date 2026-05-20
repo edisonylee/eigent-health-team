@@ -81,7 +81,7 @@ async def log_event(req: LogEventRequest) -> dict:
         )
     if not req.description.strip():
         raise HTTPException(status_code=400, detail="Description is empty.")
-    return await db.add_event(
+    row = await db.add_event(
         {
             "profile_id": req.profile_id,
             "category": req.category,
@@ -91,6 +91,24 @@ async def log_event(req: LogEventRequest) -> dict:
             "meta": req.meta,
         }
     )
+    # Feed the event's prose into the memory graph + profile synthesis so a
+    # quick-note actually makes the agents smarter — not just the calendar.
+    import threading
+    from .. import personal_entities as _pe, profile_synthesis as _ps
+
+    def _bg() -> None:
+        try:
+            text = f"[{row['category']}] {row['description']}"
+            _pe.index_text_sync(text, "event_note", str(row["id"]))
+            # If the event carries a scalar (sleep hours, mood score, symptom
+            # severity), bucket it as an observation so it joins the graph.
+            _pe.index_event_observation_sync(int(row["id"]))
+        except Exception:
+            pass
+
+    threading.Thread(target=_bg, daemon=True).start()
+    _ps.spawn_profile_synthesis()
+    return row
 
 
 @router.delete("/{event_id}")
