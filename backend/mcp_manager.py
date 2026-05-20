@@ -50,16 +50,22 @@ def _resolve_specs() -> list[_ServerSpec]:
     specs: list[_ServerSpec] = []
 
     # 1. health_kb — our custom server. Always-on.
-    specs.append(
-        _ServerSpec(
-            name="health_kb",
-            params=StdioServerParameters(
-                command=sys.executable,
-                args=["-m", "mcp_servers.health_kb_server"],
-                env={**os.environ},
-            ),
+    # When running unfrozen, we spawn it via `python -m`. When frozen by
+    # PyInstaller (Electron build), sys.executable is the bundle binary,
+    # which dispatches the MCP-server entry point via HEALTHOS_MCP_MODE.
+    if getattr(sys, "frozen", False):
+        health_kb_params = StdioServerParameters(
+            command=sys.executable,
+            args=[],
+            env={**os.environ, "HEALTHOS_MCP_MODE": "health_kb"},
         )
-    )
+    else:
+        health_kb_params = StdioServerParameters(
+            command=sys.executable,
+            args=["-m", "mcp_servers.health_kb_server"],
+            env={**os.environ},
+        )
+    specs.append(_ServerSpec(name="health_kb", params=health_kb_params))
 
     # 2. filesystem — official. Needs `npx`.
     npx = shutil.which("npx")

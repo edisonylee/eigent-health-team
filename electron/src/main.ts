@@ -7,6 +7,7 @@
 
 import { BrowserWindow, app, globalShortcut } from "electron";
 import { ChildProcess, spawn } from "node:child_process";
+import * as fs from "node:fs";
 import * as http from "node:http";
 import * as path from "node:path";
 import { setupTray } from "./tray";
@@ -39,26 +40,49 @@ function waitForBackend(url: string, timeoutMs = 60_000): Promise<void> {
   });
 }
 
+function findBundledBackend(): string | null {
+  // Packaged: electron-builder copies extraResources to process.resourcesPath.
+  // Dev with a local pyinstaller build: electron/dist/healthos-backend/.
+  const candidates = [
+    path.join(process.resourcesPath, "healthos-backend", "healthos-backend"),
+    path.join(__dirname, "..", "dist", "healthos-backend", "healthos-backend"),
+  ];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return p;
+  }
+  return null;
+}
+
 function spawnBackend() {
-  // `uv run` resolves the venv and runs uvicorn. We point to BACKEND_PORT
-  // so we don't collide with a dev server the user may be running.
-  backend = spawn(
-    "uv",
-    [
-      "run",
-      "uvicorn",
-      "backend.server:app",
-      "--port",
-      String(BACKEND_PORT),
-      "--log-level",
-      "warning",
-    ],
-    {
-      cwd: REPO_ROOT,
+  const bundled = findBundledBackend();
+  const env = { ...process.env, HEALTHOS_PORT: String(BACKEND_PORT) };
+
+  if (bundled) {
+    backend = spawn(bundled, [], {
+      cwd: path.dirname(bundled),
       stdio: ["ignore", "inherit", "inherit"],
-      env: { ...process.env },
-    },
-  );
+      env,
+    });
+  } else {
+    // Dev fallback — assume `uv` on PATH + repo on disk.
+    backend = spawn(
+      "uv",
+      [
+        "run",
+        "uvicorn",
+        "backend.server:app",
+        "--port",
+        String(BACKEND_PORT),
+        "--log-level",
+        "warning",
+      ],
+      {
+        cwd: REPO_ROOT,
+        stdio: ["ignore", "inherit", "inherit"],
+        env,
+      },
+    );
+  }
   backend.on("exit", (code) => {
     console.log(`[backend] exited with code ${code}`);
     if (mainWindow) app.quit();
