@@ -102,6 +102,39 @@ CREATE TABLE IF NOT EXISTS setting (
     key   TEXT PRIMARY KEY,
     value TEXT
 );
+
+-- v3: personal entities extracted from the user's data. Distinct from the
+-- canonical health graph (in data/health_graph.yaml) — these are user-
+-- specific (Dr. Smith, "the trip to Banff", "the magnesium I started in
+-- May"). `canonical_id` optionally links to a canonical node when the
+-- extraction matched, e.g. magnesium → canonical "magnesium".
+CREATE TABLE IF NOT EXISTS personal_entity (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    name          TEXT NOT NULL,
+    type          TEXT NOT NULL,                 -- nutrient | condition | provider |
+                                                 -- medication | food | place |
+                                                 -- person | activity | other
+    canonical_id  TEXT,
+    first_seen    REAL,
+    last_seen     REAL,
+    mention_count INTEGER DEFAULT 0,
+    UNIQUE(name, type)
+);
+
+CREATE TABLE IF NOT EXISTS entity_mention (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    entity_id       INTEGER NOT NULL,
+    source_kind     TEXT NOT NULL,               -- run_memo | check_in_note |
+                                                 -- profile_note | lab_biomarker
+    source_id       TEXT NOT NULL,
+    context_snippet TEXT,
+    ts              REAL NOT NULL,
+    FOREIGN KEY (entity_id) REFERENCES personal_entity(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_mention_entity ON entity_mention(entity_id);
+CREATE INDEX IF NOT EXISTS idx_mention_source ON entity_mention(source_kind, source_id);
+CREATE INDEX IF NOT EXISTS idx_entity_type ON personal_entity(type);
 """
 
 

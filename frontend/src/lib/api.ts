@@ -38,6 +38,40 @@ export interface TimelineEvent {
   payload: Record<string, unknown>;
 }
 
+export interface MemoryGraphNode {
+  id: number;
+  name: string;
+  type: string;
+  canonical_id: string | null;
+  mention_count: number;
+  first_seen: number | null;
+  last_seen: number | null;
+}
+
+export interface MemoryGraphLink {
+  source: number;
+  target: number;
+  value: number;
+}
+
+export interface MemoryGraphData {
+  nodes: MemoryGraphNode[];
+  links: MemoryGraphLink[];
+}
+
+export interface EntityMention {
+  id: number;
+  source_kind: string;
+  source_id: string;
+  context_snippet: string | null;
+  ts: number;
+}
+
+export interface EntityDetail {
+  entity: MemoryGraphNode | null;
+  mentions: EntityMention[];
+}
+
 export interface CheckIn {
   id: number;
   day: string;
@@ -106,4 +140,17 @@ export const api = {
 
   prompts: () =>
     jsonFetch<Record<string, string>>("/api/prompts"),
+
+  // v3 — memory graph
+  memoryGraph: (minMentions = 1) =>
+    jsonFetch<MemoryGraphData>(`/api/memory-graph?min_mentions=${minMentions}`),
+  entityMentions: (id: number, limit = 50) =>
+    jsonFetch<EntityDetail>(
+      `/api/memory-graph/entities/${id}/mentions?limit=${limit}`,
+    ),
+  reindexMemoryGraph: (body: { password: string; clear?: boolean }) =>
+    jsonFetch<{ ok: boolean; indexed: Record<string, number> }>(
+      "/api/memory-graph/reindex",
+      { method: "POST", body: JSON.stringify(body) },
+    ),
 };

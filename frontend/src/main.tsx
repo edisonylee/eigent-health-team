@@ -9,6 +9,7 @@ import "./index.css";
 import Agents from "./routes/Agents";
 import CheckIn from "./routes/CheckIn";
 import Evals from "./routes/Evals";
+import MemoryGraph from "./routes/MemoryGraph";
 import Settings from "./routes/Settings";
 import Timeline from "./routes/Timeline";
 
@@ -27,6 +28,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             <Route path="/agents" element={<Agents />} />
             <Route path="/evals" element={<Evals />} />
             <Route path="/check-in" element={<CheckIn />} />
+            <Route path="/memory-graph" element={<MemoryGraph />} />
             <Route path="/runs/:taskId/timeline" element={<Timeline />} />
           </Route>
         </Routes>

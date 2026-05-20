@@ -10,6 +10,7 @@ const nav = [
   { to: "/", label: "Run" },
   { to: "/agents", label: "Agents" },
   { to: "/check-in", label: "Check-in" },
+  { to: "/memory-graph", label: "Memory" },
   { to: "/evals", label: "Evals" },
   { to: "/settings", label: "Settings" },
 ];

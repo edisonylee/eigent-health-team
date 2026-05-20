@@ -31,6 +31,7 @@ from src.model_config import build_model as _model
 from src.model_config import get_active_config
 
 from . import db
+from . import personal_entities as _pe
 from .events import RunEvent
 from .mcp_manager import get_manager
 
@@ -58,6 +59,26 @@ class FinishedRun:
 
 
 _finished_runs: dict[str, FinishedRun] = {}
+
+
+def _spawn_entity_extract(text: str, source_kind: str, source_id: str) -> None:
+    """Fire-and-forget personal-entity extraction for the memory graph.
+
+    Spawned in a daemon thread so the LLM call doesn't extend the runner
+    coroutine's lifetime. Failures are swallowed — extraction is additive
+    and should never break a run.
+    """
+    if not text or not text.strip():
+        return
+
+    def _go() -> None:
+        try:
+            _pe.index_text_sync(text, source_kind, source_id)
+        except Exception:
+            pass
+
+    threading.Thread(target=_go, daemon=True).start()
+
 
 # Cheap global rate limit — protects the shared OpenAI key behind the gate.
 _RUN_TIMES: list[float] = []
@@ -629,6 +650,9 @@ async def _run(task_id: str, idea: str, biomarkers: List[dict]) -> None:
         db.finalize_run_sync(
             task_id, status="done", memo=memo, cost_usd=_total_cost(totals, cfg)
         )
+        # v3: extract personal entities in the background — fire-and-forget so
+        # the LLM call doesn't extend the SSE lifecycle. Failures swallowed.
+        _spawn_entity_extract(memo, "run_memo", task_id)
 
     except Exception as exc:  # surface failures to the UI instead of hanging
         emit(RunEvent(type="error", text=f"{type(exc).__name__}: {exc}"))
@@ -761,6 +785,8 @@ async def _run_followup(new_task_id: str, orig_task_id: str, note: str) -> None:
         db.finalize_run_sync(
             new_task_id, status="done", memo=new_memo, cost_usd=_total_cost(totals, cfg)
         )
+        # v3: extract personal entities in the background — same as _run.
+        _spawn_entity_extract(new_memo, "run_memo", new_task_id)
 
     except Exception as exc:
         emit(RunEvent(type="error", text=f"{type(exc).__name__}: {exc}"))

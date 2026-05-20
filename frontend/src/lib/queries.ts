@@ -60,3 +60,26 @@ export const useAddCheckIn = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["check_ins"] }),
   });
 };
+
+// v3 — memory graph
+
+export const useMemoryGraph = (minMentions = 1) =>
+  useQuery({
+    queryKey: ["memory-graph", minMentions],
+    queryFn: () => api.memoryGraph(minMentions),
+  });
+
+export const useEntityMentions = (id: number | null) =>
+  useQuery({
+    queryKey: ["memory-graph", "entity", id],
+    queryFn: () => api.entityMentions(id!),
+    enabled: id != null,
+  });
+
+export const useReindexMemoryGraph = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: api.reindexMemoryGraph,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["memory-graph"] }),
+  });
+};

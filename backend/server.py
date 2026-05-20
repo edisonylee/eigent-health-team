@@ -37,6 +37,7 @@ from src.model_config import (
     set_active_config,
 )
 
+from .routers import memory_graph as memory_graph_router
 from .runner import (
     event_stream,
     rate_limited,
@@ -96,6 +97,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# v3: memory-graph endpoints. Net-new router; no overlap with Phase C wiring.
+app.include_router(memory_graph_router.router)
 
 
 class RunRequest(BaseModel):
