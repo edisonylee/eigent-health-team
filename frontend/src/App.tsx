@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import AgentQuestionModal from "./components/AgentQuestionModal";
 import BiomarkerTable from "./components/BiomarkerTable";
-import Gate from "./components/Gate";
 import MemoPanel from "./components/MemoPanel";
 import TaskGraph from "./components/TaskGraph";
 import WorkerDrawer from "./components/WorkerDrawer";
@@ -9,7 +9,6 @@ import { streamRun } from "./lib/sse";
 import { selectTotalCost, useStore } from "./store";
 
 export default function App() {
-  const authed = useStore((s) => s.authed);
   const idea = useStore((s) => s.idea);
   const password = useStore((s) => s.password);
   const phase = useStore((s) => s.phase);
@@ -37,14 +36,12 @@ export default function App() {
 
   // Fetch the system prompts once so the expand-drawer can render them.
   useEffect(() => {
-    if (!authed || prompts) return;
+    if (prompts) return;
     fetch("/api/prompts")
       .then((r) => (r.ok ? r.json() : null))
       .then((p) => p && setPrompts(p))
       .catch(() => {});
-  }, [authed, prompts, setPrompts]);
-
-  if (!authed) return <Gate />;
+  }, [prompts, setPrompts]);
 
   const busy = phase === "running";
 
@@ -164,7 +161,7 @@ export default function App() {
   const showCost = totalCost > 0;
 
   return (
-    <div className="min-h-screen bg-stone-100 px-6 py-8">
+    <div className="px-6 py-8">
       <div className="mx-auto max-w-5xl">
         <header className="mb-4 flex items-end justify-between">
           <div>
@@ -287,6 +284,17 @@ export default function App() {
         <div className="mt-6">
           <MemoPanel onFollowUp={runFollowUp} />
         </div>
+
+        {taskId && phase === "done" && (
+          <div className="mt-3 text-center">
+            <Link
+              to={`/runs/${taskId}/timeline`}
+              className="inline-block rounded-md border border-stone-300 px-3 py-1.5 text-xs text-stone-700 hover:bg-stone-50"
+            >
+              View full timeline →
+            </Link>
+          </div>
+        )}
 
         <p className="mt-3 text-center text-[11px] text-stone-400">
           Click any worker node to see its system prompt, streamed output, tool
