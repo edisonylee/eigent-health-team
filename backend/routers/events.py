@@ -25,10 +25,15 @@ from .. import db
 router = APIRouter(prefix="/api/events", tags=["events"])
 
 
-# Same APP_PASSWORD pattern as the other routes; resolved per-request so
-# env overrides take effect on next call.
-def _password() -> str:
-    return os.environ.get("APP_PASSWORD", "dev")
+# Match server.py:_password_ok exactly — when APP_PASSWORD is unset
+# (the desktop / local default) auth is disabled. The old `_password()`
+# helper defaulted to the literal "dev", which 401'd every event POST
+# from a local frontend (which sends an empty string when no gate is up).
+def _password_ok(provided: Optional[str]) -> bool:
+    expected = os.environ.get("APP_PASSWORD", "")
+    if not expected:
+        return True
+    return provided == expected
 
 
 CATEGORIES = {
@@ -72,7 +77,7 @@ async def list_events(
 
 @router.post("")
 async def log_event(req: LogEventRequest) -> dict:
-    if req.password != _password():
+    if not _password_ok(req.password):
         raise HTTPException(status_code=401, detail="Wrong password.")
     if req.category not in CATEGORIES:
         raise HTTPException(
@@ -113,7 +118,7 @@ async def log_event(req: LogEventRequest) -> dict:
 
 @router.delete("/{event_id}")
 async def delete_event(event_id: int, req: DeleteEventRequest) -> dict:
-    if req.password != _password():
+    if not _password_ok(req.password):
         raise HTTPException(status_code=401, detail="Wrong password.")
     ok = await db.delete_event(event_id)
     if not ok:
