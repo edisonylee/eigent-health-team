@@ -3,10 +3,8 @@ import { Link } from "react-router-dom";
 import AgentQuestionModal from "./components/AgentQuestionModal";
 import AgentTimeline from "./components/AgentTimeline";
 import BiomarkerTable from "./components/BiomarkerTable";
-import CalendarStrip from "./components/CalendarStrip";
 import MemoPanel from "./components/MemoPanel";
 import TaskGraph from "./components/TaskGraph";
-import TrendChart from "./components/TrendChart";
 import WorkerDrawer from "./components/WorkerDrawer";
 import { Button } from "./components/ui/Button";
 import { Card } from "./components/ui/Card";
@@ -40,14 +38,6 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [labText, setLabText] = useState("");
   const [showLabPaste, setShowLabPaste] = useState(false);
-  // Visible month for the calendar + trend strip. Shared so the two stay
-  // in lockstep when chevrons are clicked.
-  const [visibleMonth, setVisibleMonth] = useState<{ year: number; month: number }>(
-    () => {
-      const d = new Date();
-      return { year: d.getFullYear(), month: d.getMonth() };
-    },
-  );
 
   useEffect(() => {
     if (prompts) return;
@@ -306,15 +296,6 @@ export default function App() {
         )}
 
         <BiomarkerTable />
-
-        {/* v3: long-term operator substrate — retroactive event calendar +
-            per-category trend strip. Both bound to the visible month. */}
-        <CalendarStrip
-          year={visibleMonth.year}
-          month={visibleMonth.month}
-          onChange={(year, month) => setVisibleMonth({ year, month })}
-        />
-        <TrendChart year={visibleMonth.year} month={visibleMonth.month} />
 
         {phase === "error" && (
           <Card surface="starless" shape="default" className="mb-4 border border-status-error/40 bg-status-error/10 text-status-error">
