@@ -1,4 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import ApprovalModal from "./components/ApprovalModal";
+import BiomarkerTable from "./components/BiomarkerTable";
 import Gate from "./components/Gate";
 import MemoPanel from "./components/MemoPanel";
 import TaskGraph from "./components/TaskGraph";
@@ -14,12 +16,24 @@ export default function App() {
   const error = useStore((s) => s.error);
   const totalCost = useStore(selectTotalCost);
   const prompts = useStore((s) => s.prompts);
+  const labPanel = useStore((s) => s.labPanel);
+  const labError = useStore((s) => s.labError);
+  const labLoading = useStore((s) => s.labLoading);
   const setIdea = useStore((s) => s.setIdea);
   const setPrompts = useStore((s) => s.setPrompts);
+  const setTaskId = useStore((s) => s.setTaskId);
+  const taskId = useStore((s) => s.taskId);
+  const startFollowUp = useStore((s) => s.startFollowUp);
+  const setLabPanel = useStore((s) => s.setLabPanel);
+  const setLabError = useStore((s) => s.setLabError);
+  const setLabLoading = useStore((s) => s.setLabLoading);
   const startRun = useStore((s) => s.startRun);
   const applyEvent = useStore((s) => s.applyEvent);
 
   const esRef = useRef<EventSource | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [labText, setLabText] = useState("");
+  const [showLabPaste, setShowLabPaste] = useState(false);
 
   // Fetch the system prompts once so the expand-drawer can render them.
   useEffect(() => {
@@ -32,16 +46,55 @@ export default function App() {
 
   if (!authed) return <Gate />;
 
-  const running = phase === "running";
+  const busy = phase === "running" || phase === "awaiting_approval";
 
-  const run = async () => {
-    if (!idea.trim() || running) return;
-    startRun();
+  const uploadLabs = async (formData: FormData) => {
+    formData.set("password", password);
+    setLabLoading(true);
+    setLabError("");
     try {
-      const res = await fetch("/api/run", {
+      const res = await fetch("/api/labs", { method: "POST", body: formData });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setLabError(body.detail || `HTTP ${res.status}`);
+        return;
+      }
+      const panel = await res.json();
+      setLabPanel(panel);
+    } catch (err) {
+      setLabError(String(err));
+    } finally {
+      setLabLoading(false);
+    }
+  };
+
+  const onPickFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.set("file", file);
+    await uploadLabs(fd);
+    // reset so the same file can be re-picked
+    e.target.value = "";
+  };
+
+  const onSubmitLabText = async () => {
+    if (!labText.trim()) return;
+    const fd = new FormData();
+    fd.set("text", labText.trim());
+    await uploadLabs(fd);
+    setLabText("");
+    setShowLabPaste(false);
+  };
+
+  const runFollowUp = async (note: string) => {
+    if (!taskId) return;
+    startFollowUp();
+    try {
+      const res = await fetch(`/api/run/${taskId}/follow_up`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idea, password }),
+        body: JSON.stringify({ note, password }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -49,6 +102,39 @@ export default function App() {
         return;
       }
       const { task_id } = await res.json();
+      setTaskId(task_id);
+      esRef.current?.close();
+      esRef.current = streamRun(task_id, (ev) => {
+        applyEvent(ev);
+        if (ev.type === "task_complete" || ev.type === "error") {
+          esRef.current?.close();
+        }
+      });
+    } catch (err) {
+      applyEvent({ type: "error", text: String(err) });
+    }
+  };
+
+  const run = async () => {
+    if (!idea.trim() || busy) return;
+    startRun();
+    try {
+      const res = await fetch("/api/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idea,
+          password,
+          biomarkers: labPanel?.biomarkers ?? null,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        applyEvent({ type: "error", text: body.detail || `HTTP ${res.status}` });
+        return;
+      }
+      const { task_id } = await res.json();
+      setTaskId(task_id);
       esRef.current?.close();
       esRef.current = streamRun(task_id, (ev) => {
         applyEvent(ev);
@@ -99,17 +185,86 @@ export default function App() {
             onChange={(e) => setIdea(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && run()}
             placeholder="Describe yourself — age, lifestyle, goals, any concerns. e.g. 34, desk job, want more energy and to lose 10 lbs, mild back pain"
-            disabled={running}
+            disabled={busy}
             className="flex-1 rounded-md border border-stone-300 bg-white px-3 py-2 text-sm outline-none focus:border-stone-500 disabled:bg-stone-50"
           />
           <button
             onClick={run}
-            disabled={running || !idea.trim()}
+            disabled={busy || !idea.trim()}
             className="rounded-md bg-stone-900 px-6 py-2 text-sm text-white hover:bg-stone-700 disabled:opacity-40"
           >
-            {running ? "Running…" : "Run"}
+            {phase === "running"
+              ? "Running…"
+              : phase === "awaiting_approval"
+                ? "Awaiting approval…"
+                : "Run"}
           </button>
         </div>
+
+        <div className="mb-5 flex flex-wrap items-center gap-3 text-xs text-stone-600">
+          <span className="text-stone-500">Optional — attach a lab report:</span>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={busy || labLoading}
+            className="rounded-md border border-stone-300 bg-white px-3 py-1.5 hover:bg-stone-50 disabled:opacity-40"
+          >
+            📄 Upload PDF
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/pdf,.pdf"
+            onChange={onPickFile}
+            className="hidden"
+          />
+          <button
+            type="button"
+            onClick={() => setShowLabPaste((v) => !v)}
+            disabled={busy || labLoading}
+            className="rounded-md border border-stone-300 bg-white px-3 py-1.5 hover:bg-stone-50 disabled:opacity-40"
+          >
+            📋 Paste text
+          </button>
+          {labLoading && <span className="text-stone-500">parsing…</span>}
+          {labError && (
+            <span className="text-red-600">labs: {labError}</span>
+          )}
+        </div>
+
+        {showLabPaste && (
+          <div className="mb-5 rounded-md border border-stone-200 bg-white p-3">
+            <textarea
+              value={labText}
+              onChange={(e) => setLabText(e.target.value)}
+              placeholder="Paste lab values here. e.g.&#10;Vitamin D, 25-Hydroxy   18  ng/mL  (ref 30-100)  LOW&#10;Hemoglobin A1c   5.9  %   (ref <5.7)  HIGH"
+              rows={6}
+              className="w-full resize-y rounded border border-stone-200 bg-stone-50 px-3 py-2 font-mono text-[11px] outline-none focus:border-stone-400"
+            />
+            <div className="mt-2 flex justify-end gap-2 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setLabText("");
+                  setShowLabPaste(false);
+                }}
+                className="text-stone-500 hover:text-stone-800"
+              >
+                cancel
+              </button>
+              <button
+                type="button"
+                onClick={onSubmitLabText}
+                disabled={!labText.trim() || labLoading}
+                className="rounded-md bg-stone-900 px-3 py-1.5 text-white hover:bg-stone-700 disabled:opacity-40"
+              >
+                Parse
+              </button>
+            </div>
+          </div>
+        )}
+
+        <BiomarkerTable />
 
         {phase === "error" && (
           <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -120,7 +275,7 @@ export default function App() {
         <TaskGraph />
 
         <div className="mt-6">
-          <MemoPanel />
+          <MemoPanel onFollowUp={runFollowUp} />
         </div>
 
         <p className="mt-3 text-center text-[11px] text-stone-400">
@@ -130,6 +285,7 @@ export default function App() {
       </div>
 
       <WorkerDrawer />
+      <ApprovalModal />
     </div>
   );
 }

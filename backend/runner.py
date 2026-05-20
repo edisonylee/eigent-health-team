@@ -13,7 +13,7 @@ import re
 import time
 import uuid
 from collections import defaultdict
-from typing import Any, AsyncIterator, Callable, Dict, Optional
+from typing import Any, AsyncIterator, Callable, Dict, List, Optional
 
 from camel.agents import ChatAgent
 from camel.societies.workforce import Workforce
@@ -27,12 +27,33 @@ from src.agents import (
     SAFETY_PROMPT,
     _model,
 )
+from src.graph_rag import search_health_graph as _graph_search
 from src.rag import search_health_kb as _kb_search
 
 from .events import RunEvent
 
 # task_id -> event queue. `None` on the queue is the close sentinel.
 _queues: dict[str, asyncio.Queue] = {}
+
+# task_id -> Future awaiting human approval. Resolved by the /human_input
+# endpoint or cancelled by a 5-min timeout.
+_pending_approvals: dict[str, asyncio.Future] = {}
+_APPROVAL_TIMEOUT_S = 300
+
+
+# task_id -> the inputs + final memo of a completed-and-approved run.
+# Used to enable cheap follow-up refinement without re-running the whole
+# Workforce. In-memory only — survives the server process, not restarts.
+class FinishedRun:
+    __slots__ = ("profile", "biomarkers", "memo")
+
+    def __init__(self, profile: str, biomarkers: List[dict], memo: str) -> None:
+        self.profile = profile
+        self.biomarkers = biomarkers
+        self.memo = memo
+
+
+_finished_runs: dict[str, FinishedRun] = {}
 
 # Cheap global rate limit — protects the shared OpenAI key behind the gate.
 _RUN_TIMES: list[float] = []
@@ -53,6 +74,21 @@ def rate_limited() -> bool:
 
 
 _SUBTASK_MARKER = re.compile(r"-{2,}\s*Subtask\s+\S+\s+Result\s*-{2,}")
+_CONCLUSION_MARKER = re.compile(r"^##\s+Conclusion\s*$", re.MULTILINE | re.IGNORECASE)
+
+
+def _strip_reasoning_prelude(text: str) -> str:
+    """Drop everything up through a '## Conclusion' line.
+
+    All four agents are prompted to output `## Reasoning` then `## Conclusion`.
+    The final user-visible memo should only be the Conclusion content; the
+    Reasoning trace is still preserved in the per-worker streamed output for
+    the drawer to render.
+    """
+    m = _CONCLUSION_MARKER.search(text)
+    if not m:
+        return text
+    return text[m.end():].lstrip()
 
 
 def _extract_memo(raw: str) -> str:
@@ -61,12 +97,14 @@ def _extract_memo(raw: str) -> str:
     The Workforce sometimes returns the final summarizer memo directly, and
     sometimes a concatenation of every subtask result. In the latter case the
     last section is the Summarizer's output — that's the memo we want.
+    Also strips the reasoning prelude so the user sees the polished plan.
     """
     raw = (raw or "").strip()
     if not raw:
         return "(no memo produced)"
     sections = [s.strip() for s in _SUBTASK_MARKER.split(raw) if s.strip()]
-    return sections[-1] if sections else raw
+    memo = sections[-1] if sections else raw
+    return _strip_reasoning_prelude(memo)
 
 
 def _role_for(description: str) -> Optional[str]:
@@ -102,6 +140,44 @@ def _wrap_search_tool(
         return real(*args, **kwargs)
 
     return FunctionTool(search_duckduckgo)
+
+
+def _wrap_graph_tool(emit: Callable[[RunEvent], None]) -> FunctionTool:
+    """Wrap query_health_graph to emit tool_call + retrieved_entities."""
+
+    def query_health_graph(query: str, k: int = 5) -> list[dict]:
+        """query_health_graph — retrieves entities + 1-hop relationships.
+
+        Args:
+            query: Natural-language question or topic.
+            k: Number of top entities to return (default 5).
+
+        Returns:
+            A list of entity dicts with typed edges.
+        """
+        entities = _graph_search(query, k=k)
+        payload = [
+            {
+                "id": e.id,
+                "type": e.type,
+                "name": e.name,
+                "score": round(e.score, 4),
+                "edge_count": len(e.edges),
+            }
+            for e in entities
+        ]
+        emit(
+            RunEvent(
+                type="tool_call",
+                role="researcher",
+                tool_name="query_health_graph",
+                tool_query=str(query),
+                retrieved_entities=payload,
+            )
+        )
+        return [e.to_dict() for e in entities]
+
+    return FunctionTool(query_health_graph)
 
 
 def _wrap_kb_tool(emit: Callable[[RunEvent], None]) -> FunctionTool:
@@ -173,11 +249,12 @@ def _build_instrumented_workforce(
     tool-call-emitting wrapper around the search tool."""
     web_tool = _wrap_search_tool(emit)
     kb_tool = _wrap_kb_tool(emit)
+    graph_tool = _wrap_graph_tool(emit)
 
     researcher = ChatAgent(
         system_message=RESEARCHER_PROMPT,
         model=_model(stream=True),
-        tools=[kb_tool, web_tool],
+        tools=[graph_tool, kb_tool, web_tool],
         on_request_usage=_usage_callback("researcher", totals, emit),
     )
     assessor = ChatAgent(
@@ -222,15 +299,40 @@ def _build_instrumented_workforce(
     return wf
 
 
-def start_run(idea: str) -> str:
+def start_run(idea: str, biomarkers: Optional[List[dict]] = None) -> str:
     """Schedule a Workforce run; return its task_id immediately."""
     task_id = uuid.uuid4().hex[:12]
     _queues[task_id] = asyncio.Queue()
-    asyncio.create_task(_run(task_id, idea))
+    asyncio.create_task(_run(task_id, idea, biomarkers or []))
     return task_id
 
 
-async def _run(task_id: str, idea: str) -> None:
+def resolve_approval(task_id: str, approved: bool) -> bool:
+    """Resolve a pending approval future. Returns False if no pending run."""
+    fut = _pending_approvals.get(task_id)
+    if fut is None or fut.done():
+        return False
+    fut.set_result(approved)
+    return True
+
+
+def _format_biomarkers(biomarkers: List[dict]) -> str:
+    """Render biomarkers as a compact block for the root task content."""
+    if not biomarkers:
+        return ""
+    lines = ["Lab values provided:"]
+    for b in biomarkers:
+        name = b.get("name") or "?"
+        value = b.get("value") or "?"
+        unit = b.get("unit") or ""
+        ref = b.get("reference_range") or "-"
+        flag = (b.get("flag") or "unknown").upper()
+        flag_tag = "" if flag == "UNKNOWN" else f" [{flag}]"
+        lines.append(f"  - {name}: {value} {unit} (ref {ref}){flag_tag}")
+    return "\n".join(lines)
+
+
+async def _run(task_id: str, idea: str, biomarkers: List[dict]) -> None:
     queue = _queues[task_id]
     loop = asyncio.get_running_loop()
 
@@ -263,20 +365,182 @@ async def _run(task_id: str, idea: str) -> None:
 
         emit(RunEvent(type="task_started"))
 
+        biomarker_block = _format_biomarkers(biomarkers)
+        profile_text = idea
+        if biomarker_block:
+            profile_text = f"{idea}\n\n{biomarker_block}"
+
         task = Task(
             content=(
                 "Produce a structured personalized health plan for this "
                 "person. Research evidence-based guidance, assess their focus "
                 "areas, review the plan for safety, and write the final "
-                f"plan.\n\nProfile: {idea}"
+                f"plan.\n\nProfile: {profile_text}"
             ),
             id="root",
         )
 
         result = await wf.process_task_async(task)
-        emit(RunEvent(type="task_complete", memo=_extract_memo(result.result)))
+        memo = _extract_memo(result.result)
+
+        # HITL gate — pause for explicit user approval before completing.
+        approval_future: asyncio.Future = loop.create_future()
+        _pending_approvals[task_id] = approval_future
+        emit(RunEvent(type="human_input_required", memo=memo))
+
+        try:
+            approved = await asyncio.wait_for(
+                approval_future, timeout=_APPROVAL_TIMEOUT_S
+            )
+        except asyncio.TimeoutError:
+            emit(
+                RunEvent(
+                    type="error",
+                    text="Approval timed out after 5 minutes — run cancelled.",
+                )
+            )
+        else:
+            if approved:
+                emit(RunEvent(type="task_complete", memo=memo))
+                _finished_runs[task_id] = FinishedRun(
+                    profile=idea, biomarkers=biomarkers, memo=memo
+                )
+            else:
+                emit(RunEvent(type="error", text="Run rejected by user."))
+        finally:
+            _pending_approvals.pop(task_id, None)
 
     except Exception as exc:  # surface failures to the UI instead of hanging
+        emit(RunEvent(type="error", text=f"{type(exc).__name__}: {exc}"))
+    finally:
+        loop.call_soon_threadsafe(queue.put_nowait, None)
+
+
+def start_follow_up(orig_task_id: str, note: str) -> str:
+    """Schedule a 2-stage refinement (Safety Reviewer + Plan Writer) against a
+    previously approved run. Returns the new task_id immediately."""
+    if orig_task_id not in _finished_runs:
+        raise ValueError("Unknown task id — original run not found.")
+    new_task_id = f"{orig_task_id}-f{uuid.uuid4().hex[:4]}"
+    _queues[new_task_id] = asyncio.Queue()
+    asyncio.create_task(_run_followup(new_task_id, orig_task_id, note))
+    return new_task_id
+
+
+async def _run_followup(new_task_id: str, orig_task_id: str, note: str) -> None:
+    """Cheap revision flow: re-runs ONLY the Safety Reviewer and Plan Writer
+    against the previous memo + a user-supplied addition. The Researcher and
+    Assessor are intentionally skipped — their work is already encoded in the
+    prior memo. Cost is ~1/10th of a full run."""
+    queue = _queues[new_task_id]
+    loop = asyncio.get_running_loop()
+
+    def emit(event: RunEvent) -> None:
+        loop.call_soon_threadsafe(queue.put_nowait, event)
+
+    try:
+        prev = _finished_runs[orig_task_id]
+        totals: Dict[str, Dict[str, int]] = defaultdict(
+            lambda: {"prompt_tokens": 0, "completion_tokens": 0}
+        )
+
+        safety_agent = ChatAgent(
+            system_message=SAFETY_PROMPT,
+            model=_model(stream=False),
+            on_request_usage=_usage_callback("critic", totals, emit),
+        )
+        plan_agent = ChatAgent(
+            system_message=PLAN_PROMPT,
+            model=_model(stream=False),
+            on_request_usage=_usage_callback("summarizer", totals, emit),
+        )
+
+        emit(RunEvent(type="task_started"))
+
+        biomarker_block = _format_biomarkers(prev.biomarkers)
+        profile_summary = prev.profile + (
+            f"\n\n{biomarker_block}" if biomarker_block else ""
+        )
+
+        # Stage 1: Safety re-review with the addition.
+        emit(RunEvent(type="worker_running", role="critic"))
+        safety_input = (
+            f"Original profile:\n{profile_summary}\n\n"
+            f"Original plan (already produced):\n{prev.memo}\n\n"
+            f"The user is adding the following to their profile:\n"
+            f'"{note}"\n\n'
+            "Re-review the existing plan with this new context. Surface any "
+            "new risks, contraindications, or red-flag symptoms the addition "
+            "introduces, and update the verdict if warranted."
+        )
+        safety_resp = await asyncio.to_thread(safety_agent.step, safety_input)
+        safety_text = safety_resp.msgs[0].content
+        emit(
+            RunEvent(
+                type="worker_chunk",
+                role="critic",
+                text=safety_text,
+                mode="accumulate",
+            )
+        )
+
+        # Stage 2: Plan revision incorporating the addition.
+        emit(RunEvent(type="worker_running", role="summarizer"))
+        plan_input = (
+            f"Original profile:\n{profile_summary}\n\n"
+            f"Original plan (already produced):\n{prev.memo}\n\n"
+            f"The user added:\n\"{note}\"\n\n"
+            f"Updated safety review:\n{safety_text}\n\n"
+            "Produce a REVISED plan that incorporates the addition. Keep the "
+            "structure and most of the substance of the original plan; "
+            "modify, remove, or add bullets ONLY where the new context "
+            "warrants it. Keep the same section headers and the educational "
+            "disclaimer."
+        )
+        plan_resp = await asyncio.to_thread(plan_agent.step, plan_input)
+        plan_text = plan_resp.msgs[0].content
+        emit(
+            RunEvent(
+                type="worker_chunk",
+                role="summarizer",
+                text=plan_text,
+                mode="accumulate",
+            )
+        )
+
+        new_memo = _strip_reasoning_prelude(plan_text)
+
+        # HITL gate fires on the follow-up too.
+        approval_future: asyncio.Future = loop.create_future()
+        _pending_approvals[new_task_id] = approval_future
+        emit(RunEvent(type="human_input_required", memo=new_memo))
+
+        try:
+            approved = await asyncio.wait_for(
+                approval_future, timeout=_APPROVAL_TIMEOUT_S
+            )
+        except asyncio.TimeoutError:
+            emit(
+                RunEvent(
+                    type="error",
+                    text="Approval timed out — follow-up cancelled.",
+                )
+            )
+        else:
+            if approved:
+                emit(RunEvent(type="task_complete", memo=new_memo))
+                # Store under the NEW task_id so chained follow-ups work.
+                _finished_runs[new_task_id] = FinishedRun(
+                    profile=prev.profile,
+                    biomarkers=prev.biomarkers,
+                    memo=new_memo,
+                )
+            else:
+                emit(RunEvent(type="error", text="Follow-up rejected by user."))
+        finally:
+            _pending_approvals.pop(new_task_id, None)
+
+    except Exception as exc:
         emit(RunEvent(type="error", text=f"{type(exc).__name__}: {exc}"))
     finally:
         loop.call_soon_threadsafe(queue.put_nowait, None)

@@ -16,6 +16,12 @@ dependencies = [
     "qdrant-client>=1.12",
     "sentence-transformers>=3.0",
     "firecrawl-py>=1.0",
+    # Lab-report PDF parsing
+    "pypdf>=4.0",
+    "python-multipart>=0.0.9",
+    # Knowledge graph
+    "networkx>=3.0",
+    "pyyaml>=6.0",
 ]
 
 [tool.uv]

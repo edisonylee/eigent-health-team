@@ -8,6 +8,7 @@ EventType = Literal[
     "worker_chunk",
     "worker_usage",
     "tool_call",
+    "human_input_required",
     "task_complete",
     "error",
 ]
@@ -36,5 +37,7 @@ class RunEvent(BaseModel):
     # tool_call:
     tool_name: Optional[str] = None
     tool_query: Optional[str] = None
-    # tool_call (retrieval): top retrieved sources, if any
+    # tool_call (vector retrieval): top retrieved sources, if any
     retrieved_sources: Optional[list[dict]] = None
+    # tool_call (graph retrieval): top retrieved entities + their 1-hop edges
+    retrieved_entities: Optional[list[dict]] = None

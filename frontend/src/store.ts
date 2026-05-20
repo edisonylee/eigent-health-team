@@ -17,7 +17,7 @@ export const ROLE_LABEL: Record<Role, string> = {
 };
 
 export type Status = "pending" | "running" | "done";
-export type Phase = "idle" | "running" | "done" | "error";
+export type Phase = "idle" | "running" | "awaiting_approval" | "done" | "error";
 
 /** One server-sent event from a run. Mirrors backend/events.py RunEvent. */
 export interface RunEvent {
@@ -27,6 +27,7 @@ export interface RunEvent {
     | "worker_chunk"
     | "worker_usage"
     | "tool_call"
+    | "human_input_required"
     | "task_complete"
     | "error";
   role?: Role;
@@ -39,12 +40,40 @@ export interface RunEvent {
   tool_name?: string;
   tool_query?: string;
   retrieved_sources?: { url: string; title: string; score: number }[];
+  retrieved_entities?: {
+    id: string;
+    type: string;
+    name: string;
+    score: number;
+    edge_count: number;
+  }[];
 }
 
 export interface ToolCall {
   name: string;
   query: string;
   sources?: { url: string; title: string; score: number }[];
+  entities?: {
+    id: string;
+    type: string;
+    name: string;
+    score: number;
+    edge_count: number;
+  }[];
+}
+
+export interface Biomarker {
+  name: string;
+  value: string;
+  unit?: string | null;
+  reference_range?: string | null;
+  flag: "normal" | "low" | "high" | "unknown";
+}
+
+export interface BiomarkerPanel {
+  lab_name?: string | null;
+  date?: string | null;
+  biomarkers: Biomarker[];
 }
 
 interface WorkerState {
@@ -63,15 +92,27 @@ interface Store {
   authed: boolean;
   workers: Record<Role, WorkerState>;
   memo: string;
+  pendingMemo: string;
   error: string;
+  taskId: string;
   expandedRole: Role | null;
   prompts: Record<Role, string> | null;
+  // Labs
+  labPanel: BiomarkerPanel | null;
+  labError: string;
+  labLoading: boolean;
+  // Setters
   setIdea: (v: string) => void;
   setPassword: (v: string) => void;
   setAuthed: (v: boolean) => void;
   setExpanded: (r: Role | null) => void;
   setPrompts: (p: Record<Role, string>) => void;
+  setTaskId: (id: string) => void;
+  setLabPanel: (p: BiomarkerPanel | null) => void;
+  setLabError: (m: string) => void;
+  setLabLoading: (v: boolean) => void;
   startRun: () => void;
+  startFollowUp: () => void;
   applyEvent: (e: RunEvent) => void;
 }
 
@@ -97,18 +138,54 @@ export const useStore = create<Store>((set) => ({
   authed: false,
   workers: freshWorkers(),
   memo: "",
+  pendingMemo: "",
   error: "",
+  taskId: "",
   expandedRole: null,
   prompts: null,
+  labPanel: null,
+  labError: "",
+  labLoading: false,
 
   setIdea: (v) => set({ idea: v }),
   setPassword: (v) => set({ password: v }),
   setAuthed: (v) => set({ authed: v }),
   setExpanded: (r) => set({ expandedRole: r }),
   setPrompts: (p) => set({ prompts: p }),
+  setTaskId: (id) => set({ taskId: id }),
+  setLabPanel: (p) => set({ labPanel: p, labError: "" }),
+  setLabError: (m) => set({ labError: m }),
+  setLabLoading: (v) => set({ labLoading: v }),
 
   startRun: () =>
-    set({ phase: "running", workers: freshWorkers(), memo: "", error: "" }),
+    set({
+      phase: "running",
+      workers: freshWorkers(),
+      memo: "",
+      pendingMemo: "",
+      error: "",
+    }),
+
+  startFollowUp: () =>
+    set((s) => {
+      // Reset only Safety Reviewer + Plan Writer; carry over Researcher
+      // and Assessor as already-done so the graph visualizes continuity.
+      const workers = { ...s.workers };
+      workers.critic = freshWorker();
+      workers.summarizer = freshWorker();
+      // Make sure Researcher and Assessor read as done.
+      if (workers.researcher.status !== "done")
+        workers.researcher = { ...workers.researcher, status: "done" };
+      if (workers.analyst.status !== "done")
+        workers.analyst = { ...workers.analyst, status: "done" };
+      return {
+        phase: "running",
+        workers,
+        memo: "",
+        pendingMemo: "",
+        error: "",
+      };
+    }),
 
   applyEvent: (e) =>
     set((s) => {
@@ -160,10 +237,24 @@ export const useStore = create<Store>((set) => ({
               name: e.tool_name || "tool",
               query: e.tool_query || "",
               sources: e.retrieved_sources,
+              entities: e.retrieved_entities,
             },
           ],
         };
         return { workers };
+      }
+
+      if (e.type === "human_input_required") {
+        // All workers are done at this point; the run is paused for approval.
+        const workers = { ...s.workers };
+        for (const r of ROLE_ORDER) {
+          workers[r] = { ...workers[r], status: "done" };
+        }
+        return {
+          phase: "awaiting_approval",
+          pendingMemo: e.memo || "",
+          workers,
+        };
       }
 
       if (e.type === "task_complete") {
@@ -171,11 +262,20 @@ export const useStore = create<Store>((set) => ({
         for (const r of ROLE_ORDER) {
           workers[r] = { ...workers[r], status: "done" };
         }
-        return { phase: "done", memo: e.memo || "", workers };
+        return {
+          phase: "done",
+          memo: e.memo || s.pendingMemo || "",
+          pendingMemo: "",
+          workers,
+        };
       }
 
       if (e.type === "error") {
-        return { phase: "error", error: e.text || "Run failed." };
+        return {
+          phase: "error",
+          error: e.text || "Run failed.",
+          pendingMemo: "",
+        };
       }
 
       return {};

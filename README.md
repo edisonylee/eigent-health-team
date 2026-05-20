@@ -118,6 +118,65 @@ eigent-health-team/
 └── evals/                  # deterministic + LLM-judge + cost-table evals
 ```
 
+## Chain-of-thought transparency
+
+Every agent (Researcher, Assessor, Safety Reviewer, Plan Writer) is
+instructed to output its response as two H2 sections:
+
+```
+## Reasoning
+- 3–5 bullets covering what it considered, what it ruled out, why.
+
+## Conclusion
+[the normal output]
+```
+
+The frontend `WorkerDrawer` parses the streamed text, renders the reasoning
+trace in a distinct violet block above the Conclusion, and shows a small
+`💭 reasoning` badge on each worker node card. The user-facing memo strips
+the Plan Writer's reasoning prelude — it's preserved in the drawer for
+auditability, not surfaced as plan noise.
+
+## Graph RAG — a hand-curated nutrient knowledge graph
+
+The Researcher has **three** retrieval tools and picks per query:
+
+- `query_health_graph(query)` — a hand-authored knowledge graph of
+  nutrients ↔ conditions ↔ biomarkers ↔ foods ↔ exercise (65 nodes, 124
+  typed edges). Predicates: `addresses`, `found_in`, `measured_by`,
+  `interacts_with`, `risk_factor_for`, `contraindicated_with`. Preferred
+  for *relational* questions ("what foods contain magnesium", "what
+  biomarkers measure iron status").
+- `search_health_kb(query)` — the curated Qdrant vector store (see below).
+  Preferred for *guideline* questions.
+- `search_duckduckgo(query)` — open web; only for fresh / specific things.
+
+The graph lives in `data/health_graph.yaml` and loads into a NetworkX
+`MultiDiGraph` at startup. Queries embed via the same local
+sentence-transformers model and return top-k entities plus each one's
+1-hop neighborhood. Sub-millisecond traversal, no extra service.
+
+Every graph hit emits a `tool_call` SSE event with `retrieved_entities`,
+the node card shows a `🕸️ N graph` badge, and the drawer renders each
+retrieved entity with its 1-hop edges and similarity score.
+
+## Follow-up refinement
+
+After a plan is approved, the UI surfaces a **Follow-up** input below
+the memo. The user can drop in new context ("actually my left knee
+hurts on stairs") and the system runs **only the Safety Reviewer +
+Plan Writer** against the previous memo plus the new note — not the
+full pipeline. Researcher / Assessor work is preserved (they stay
+"done" on the graph; Safety + Plan Writer re-light).
+
+~1/10th the cost of a fresh run (~$0.005–0.01). The HITL approval gate
+fires on the follow-up too. Chained follow-ups work — refine again
+against the just-refined plan.
+
+Endpoint: `POST /api/run/{task_id}/follow_up` with `{note, password}`.
+State is held in an in-memory `_finished_runs` dict, populated on
+approval, indexed by task_id (including follow-up ids).
+
 ## Agentic RAG over a curated knowledge base
 
 The Health Researcher has **two tools** and *decides* which to use per query:

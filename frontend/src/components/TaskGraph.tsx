@@ -1,15 +1,18 @@
 import { useMemo } from "react";
 import ReactFlow, { Background, Edge, Node } from "reactflow";
 import { ROLE_ORDER, Role, useStore } from "../store";
+import ParserNode from "./ParserNode";
 import WorkerNode from "./WorkerNode";
 
-const nodeTypes = { worker: WorkerNode };
+const nodeTypes = { worker: WorkerNode, parser: ParserNode };
 const WORKER_IDS = new Set<string>(ROLE_ORDER);
 
-/** Live node graph of the Workforce: coordinator → 4 workers → memo. */
+/** Live node graph: Lab Parser → coordinator → 4 workers → memo. */
 export default function TaskGraph() {
   const workers = useStore((s) => s.workers);
   const phase = useStore((s) => s.phase);
+  const labPanel = useStore((s) => s.labPanel);
+  const labLoading = useStore((s) => s.labLoading);
   const setExpanded = useStore((s) => s.setExpanded);
 
   const nodes: Node[] = useMemo(() => {
@@ -21,6 +24,9 @@ export default function TaskGraph() {
       ).length;
       const webCount = w.toolCalls.filter(
         (tc) => tc.name === "search_duckduckgo",
+      ).length;
+      const graphCount = w.toolCalls.filter(
+        (tc) => tc.name === "query_health_graph",
       ).length;
       return {
         id: role,
@@ -35,10 +41,28 @@ export default function TaskGraph() {
           cost: w.cost,
           kbCount,
           webCount,
+          graphCount,
         },
         draggable: false,
       };
     });
+
+    const parserStatus = labLoading
+      ? "running"
+      : labPanel && labPanel.biomarkers.length > 0
+        ? "done"
+        : "idle";
+
+    const parser: Node = {
+      id: "lab_parser",
+      type: "parser",
+      position: { x: 376, y: -120 },
+      data: {
+        status: parserStatus,
+        biomarkerCount: labPanel?.biomarkers.length ?? 0,
+      },
+      draggable: false,
+    };
 
     const coordinator: Node = {
       id: "coordinator",
@@ -71,11 +95,18 @@ export default function TaskGraph() {
       },
     };
 
-    return [coordinator, ...workerNodes, memo];
-  }, [workers, phase]);
+    return [parser, coordinator, ...workerNodes, memo];
+  }, [workers, phase, labLoading, labPanel]);
 
   const edges: Edge[] = useMemo(() => {
     const out: Edge[] = [];
+    out.push({
+      id: "parser-coordinator",
+      source: "lab_parser",
+      target: "coordinator",
+      animated: labLoading,
+      style: { stroke: labPanel ? "#8b5cf6" : "#d6d3d1", strokeDasharray: labPanel ? undefined : "4 4" },
+    });
     for (const role of ROLE_ORDER) {
       const running = workers[role].status === "running";
       out.push({
@@ -92,10 +123,10 @@ export default function TaskGraph() {
       });
     }
     return out;
-  }, [workers]);
+  }, [workers, labLoading, labPanel]);
 
   return (
-    <div className="h-[420px] w-full rounded-xl border border-stone-200 bg-white">
+    <div className="h-[500px] w-full rounded-xl border border-stone-200 bg-white">
       <ReactFlow
         nodes={nodes}
         edges={edges}

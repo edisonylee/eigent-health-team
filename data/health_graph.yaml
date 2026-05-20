@@ -1,0 +1,517 @@
+# Curated health knowledge graph — nutrient-centric.
+#
+# Entities are identified by lowercase snake_case ids and grouped by type.
+# Edges are 3- or 4-tuples: [subject_id, predicate, object_id, optional_note].
+# Predicates: addresses, found_in, measured_by, interacts_with,
+#             risk_factor_for, contraindicated_with, supports.
+#
+# Authored by hand from NIH Office of Dietary Supplements, CDC, AHA, USDA
+# Dietary Guidelines, NHLBI sleep guidance, and Mayo Clinic consumer health.
+# Educational, not medical advice.
+
+entities:
+  # ---- nutrients (20) ----
+  vitamin_d:
+    type: nutrient
+    name: Vitamin D
+    aliases: [Cholecalciferol, Vitamin D3, 25-Hydroxyvitamin D]
+    description: Fat-soluble vitamin; supports bone health, immune function, mood regulation. RDA 600 IU adults / 800 IU 70+. Most deficiency is asymptomatic.
+
+  vitamin_b12:
+    type: nutrient
+    name: Vitamin B12
+    aliases: [Cobalamin, Methylcobalamin]
+    description: Water-soluble; required for red-blood-cell formation and neurological function. Common deficiency in vegetarians, vegans, and older adults.
+
+  vitamin_b6:
+    type: nutrient
+    name: Vitamin B6
+    aliases: [Pyridoxine]
+    description: Cofactor in amino acid metabolism, neurotransmitter synthesis.
+
+  folate:
+    type: nutrient
+    name: Folate (Vitamin B9)
+    aliases: [Folic acid, B9]
+    description: Critical for DNA synthesis and red-blood-cell formation.
+
+  iron:
+    type: nutrient
+    name: Iron
+    description: Required for hemoglobin and oxygen transport. Most common nutrient deficiency worldwide; menstruating women, pregnant women, and endurance athletes at higher risk.
+
+  magnesium:
+    type: nutrient
+    name: Magnesium
+    description: Cofactor in 300+ enzymes; muscle, nerve, blood-pressure regulation, sleep. Mild deficiency is common.
+
+  calcium:
+    type: nutrient
+    name: Calcium
+    description: Bone mineral density, muscle contraction, vascular function. RDA 1000 mg adults.
+
+  zinc:
+    type: nutrient
+    name: Zinc
+    description: Immune function, wound healing, taste/smell. Common deficiency in vegetarian diets.
+
+  vitamin_c:
+    type: nutrient
+    name: Vitamin C
+    aliases: [Ascorbic acid]
+    description: Antioxidant; collagen synthesis; immune support.
+
+  omega_3:
+    type: nutrient
+    name: Omega-3 fatty acids
+    aliases: [EPA, DHA, Fish oil]
+    description: Anti-inflammatory; cardiovascular and cognitive support. Two principal forms EPA and DHA from marine sources.
+
+  potassium:
+    type: nutrient
+    name: Potassium
+    description: Blood pressure regulation, muscle function. Most Americans under-consume relative to the recommended 4700 mg/day.
+
+  fiber:
+    type: nutrient
+    name: Dietary fiber
+    description: Soluble + insoluble; supports gut health, blood-sugar control, cardiovascular health.
+
+  protein:
+    type: nutrient
+    name: Dietary protein
+    description: Amino-acid source for tissue repair, satiety, lean-mass preservation. 0.8 g/kg minimum, 1.2-1.6 g/kg if active or losing weight.
+
+  vitamin_e:
+    type: nutrient
+    name: Vitamin E
+    description: Antioxidant; supports immune function and cell membrane integrity.
+
+  vitamin_k:
+    type: nutrient
+    name: Vitamin K
+    aliases: [Vitamin K2, MK-7]
+    description: Bone and cardiovascular health; works synergistically with Vitamin D.
+
+  selenium:
+    type: nutrient
+    name: Selenium
+    description: Thyroid function, antioxidant.
+
+  iodine:
+    type: nutrient
+    name: Iodine
+    description: Required for thyroid hormone synthesis.
+
+  choline:
+    type: nutrient
+    name: Choline
+    description: Cell membrane integrity, brain development, liver function.
+
+  probiotics:
+    type: nutrient
+    name: Probiotics
+    description: Live microorganisms supporting gut microbiome diversity.
+
+  melatonin:
+    type: nutrient
+    name: Melatonin
+    description: Endogenous hormone; supplemental short-term use can help shift sleep timing.
+
+  # ---- conditions (15) ----
+  low_mood:
+    type: condition
+    name: Low mood / mild depressive symptoms
+    description: Persistent low mood, reduced energy, sometimes seasonal.
+
+  poor_sleep:
+    type: condition
+    name: Poor sleep quality / short sleep duration
+    description: Sleep duration <7h or fragmented sleep; impacts metabolism, mood, immunity.
+
+  fatigue:
+    type: condition
+    name: Fatigue / low energy
+    description: Persistent tiredness not relieved by rest.
+
+  weight_loss_goal:
+    type: condition
+    name: Weight loss goal
+    description: Intentional loss of body fat; commonly targeted via caloric deficit + protein preservation.
+
+  t2_diabetes_risk:
+    type: condition
+    name: Type 2 diabetes risk
+    description: Elevated risk of impaired glucose tolerance; often preceded by overweight, sedentary lifestyle, family history.
+
+  cardiovascular_risk:
+    type: condition
+    name: Cardiovascular disease risk
+    description: Elevated risk of heart disease and stroke.
+
+  hypertension_risk:
+    type: condition
+    name: Elevated blood pressure
+    description: BP trending toward or above 130/80.
+
+  bone_density_loss:
+    type: condition
+    name: Bone density loss / osteoporosis risk
+    description: Reduced bone mineral density; risk increases with age, low Vitamin D, low calcium, sedentary lifestyle.
+
+  anemia_risk:
+    type: condition
+    name: Anemia risk
+    description: Low red-blood-cell or hemoglobin levels; often iron-, B12-, or folate-driven.
+
+  joint_pain:
+    type: condition
+    name: Joint pain / mild osteoarthritis
+    description: Pain in knees, hips, or lower back; common in sedentary middle-aged adults.
+
+  lower_back_pain:
+    type: condition
+    name: Lower back pain
+    description: Chronic or recurrent low-back discomfort; often associated with prolonged sitting and weak core/glutes.
+
+  cognitive_decline_risk:
+    type: condition
+    name: Cognitive decline risk
+    description: Age-related risk for memory and processing-speed decline; modifiable risk factors include diet, exercise, sleep.
+
+  gut_health:
+    type: condition
+    name: Gut health
+    description: Microbiome diversity and digestive function.
+
+  immune_support:
+    type: condition
+    name: Immune support
+    description: Resilience to common viral illness; improved by adequate sleep, protein, micronutrients.
+
+  insulin_resistance:
+    type: condition
+    name: Insulin resistance
+    description: Reduced responsiveness to insulin; precursor to T2 diabetes.
+
+  # ---- biomarkers (10) ----
+  25_oh_d:
+    type: biomarker
+    name: 25-Hydroxyvitamin D
+    description: Serum measure of vitamin D status. <30 ng/mL low, 30-100 normal.
+
+  hba1c:
+    type: biomarker
+    name: Hemoglobin A1c
+    description: 3-month average blood glucose. <5.7% normal, 5.7-6.4% prediabetes, ≥6.5% diabetes.
+
+  ldl_cholesterol:
+    type: biomarker
+    name: LDL cholesterol
+    description: "'Bad' cholesterol. <100 mg/dL optimal; >160 high-risk."
+
+  hdl_cholesterol:
+    type: biomarker
+    name: HDL cholesterol
+    description: "'Good' cholesterol. >60 mg/dL protective."
+
+  triglycerides:
+    type: biomarker
+    name: Triglycerides
+    description: Circulating fats. <150 mg/dL normal.
+
+  ferritin:
+    type: biomarker
+    name: Ferritin
+    description: Iron storage. <30 ng/mL low iron stores.
+
+  hemoglobin:
+    type: biomarker
+    name: Hemoglobin
+    description: Oxygen-carrying protein. Low values indicate anemia.
+
+  serum_b12:
+    type: biomarker
+    name: Serum Vitamin B12
+    description: Vitamin B12 status. <200 pg/mL deficient.
+
+  tsh:
+    type: biomarker
+    name: TSH (Thyroid stimulating hormone)
+    description: Thyroid function screen. 0.4-4.5 mIU/L typical range.
+
+  fasting_glucose:
+    type: biomarker
+    name: Fasting glucose
+    description: <100 mg/dL normal, 100-125 prediabetes, ≥126 diabetes.
+
+  # ---- foods (15) ----
+  fatty_fish:
+    type: food
+    name: Fatty fish (salmon, sardines, mackerel)
+    description: Rich source of omega-3 (EPA/DHA), Vitamin D, high-quality protein.
+
+  fortified_dairy:
+    type: food
+    name: Fortified dairy
+    description: Milk and yogurt fortified with Vitamin D and naturally rich in calcium and protein.
+
+  leafy_greens:
+    type: food
+    name: Leafy greens (spinach, kale, chard)
+    description: Folate, Vitamin K, magnesium, fiber, iron (non-heme).
+
+  whole_grains:
+    type: food
+    name: Whole grains (oats, brown rice, quinoa)
+    description: Fiber, magnesium, B vitamins, slow carbohydrates.
+
+  legumes:
+    type: food
+    name: Legumes (beans, lentils, chickpeas)
+    description: Plant protein, fiber, folate, iron.
+
+  nuts_seeds:
+    type: food
+    name: Nuts and seeds
+    description: Healthy fats, magnesium, zinc, plant protein, fiber.
+
+  lean_meats:
+    type: food
+    name: Lean meats and poultry
+    description: Heme iron, Vitamin B12, complete protein, zinc.
+
+  eggs:
+    type: food
+    name: Eggs
+    description: Choline, complete protein, Vitamin D, B12.
+
+  berries:
+    type: food
+    name: Berries
+    description: Polyphenols, Vitamin C, fiber, low glycemic.
+
+  citrus:
+    type: food
+    name: Citrus fruits
+    description: Vitamin C, folate, fiber.
+
+  olive_oil:
+    type: food
+    name: Extra virgin olive oil
+    description: Monounsaturated fats, polyphenols; Mediterranean-diet staple.
+
+  yogurt:
+    type: food
+    name: Plain yogurt (with live cultures)
+    description: Probiotics, calcium, protein.
+
+  cruciferous_veg:
+    type: food
+    name: Cruciferous vegetables (broccoli, cauliflower)
+    description: Fiber, Vitamin C, folate, sulforaphane.
+
+  fortified_cereal:
+    type: food
+    name: Fortified breakfast cereal
+    description: Often fortified with B12, iron, folate, Vitamin D.
+
+  water:
+    type: food
+    name: Water
+    description: Adequate hydration supports nearly every body system.
+
+  # ---- exercise (5) ----
+  aerobic_exercise:
+    type: exercise
+    name: Aerobic exercise
+    description: Sustained moderate-to-vigorous activity (walking, cycling, swimming). 150+ min/week recommended.
+
+  resistance_training:
+    type: exercise
+    name: Resistance training
+    description: Strength work targeting major muscle groups. 2+ sessions/week recommended.
+
+  flexibility_work:
+    type: exercise
+    name: Flexibility / mobility work
+    description: Stretching, yoga, mobility drills.
+
+  walking:
+    type: exercise
+    name: Walking
+    description: Low-impact aerobic; accessible to nearly anyone.
+
+  hiit:
+    type: exercise
+    name: HIIT (high-intensity interval training)
+    description: Short bursts of high-intensity work alternated with recovery. Efficient for time-constrained adults but harder on joints.
+
+edges:
+  # Vitamin D
+  - [vitamin_d, addresses, low_mood, "modest effect, strongest when 25-OH-D is below 20 ng/mL"]
+  - [vitamin_d, addresses, bone_density_loss]
+  - [vitamin_d, addresses, immune_support]
+  - [vitamin_d, addresses, poor_sleep, "associations observed in deficient individuals"]
+  - [vitamin_d, found_in, fatty_fish]
+  - [vitamin_d, found_in, fortified_dairy]
+  - [vitamin_d, found_in, eggs]
+  - [vitamin_d, found_in, fortified_cereal]
+  - [vitamin_d, measured_by, 25_oh_d]
+  - [vitamin_d, interacts_with, calcium, "Vitamin D improves intestinal calcium absorption"]
+  - [vitamin_d, interacts_with, magnesium, "magnesium required for Vitamin D activation"]
+  - [vitamin_d, interacts_with, vitamin_k, "K2 directs absorbed calcium to bone"]
+
+  # B12
+  - [vitamin_b12, addresses, anemia_risk]
+  - [vitamin_b12, addresses, fatigue, "when deficient"]
+  - [vitamin_b12, addresses, cognitive_decline_risk]
+  - [vitamin_b12, found_in, lean_meats]
+  - [vitamin_b12, found_in, eggs]
+  - [vitamin_b12, found_in, fortified_dairy]
+  - [vitamin_b12, found_in, fortified_cereal]
+  - [vitamin_b12, measured_by, serum_b12]
+
+  # B6
+  - [vitamin_b6, found_in, lean_meats]
+  - [vitamin_b6, found_in, legumes]
+
+  # Folate
+  - [folate, addresses, anemia_risk]
+  - [folate, found_in, leafy_greens]
+  - [folate, found_in, legumes]
+  - [folate, found_in, citrus]
+  - [folate, found_in, fortified_cereal]
+
+  # Iron
+  - [iron, addresses, anemia_risk]
+  - [iron, addresses, fatigue, "when ferritin is low"]
+  - [iron, found_in, lean_meats]
+  - [iron, found_in, leafy_greens, "non-heme, less bioavailable"]
+  - [iron, found_in, legumes]
+  - [iron, found_in, fortified_cereal]
+  - [iron, measured_by, ferritin]
+  - [iron, measured_by, hemoglobin]
+  - [iron, interacts_with, vitamin_c, "Vitamin C improves non-heme iron absorption"]
+  - [iron, contraindicated_with, calcium, "calcium supplements taken with iron reduce absorption"]
+
+  # Magnesium
+  - [magnesium, addresses, poor_sleep]
+  - [magnesium, addresses, hypertension_risk]
+  - [magnesium, addresses, fatigue]
+  - [magnesium, found_in, leafy_greens]
+  - [magnesium, found_in, nuts_seeds]
+  - [magnesium, found_in, whole_grains]
+  - [magnesium, found_in, legumes]
+  - [magnesium, interacts_with, vitamin_d]
+
+  # Calcium
+  - [calcium, addresses, bone_density_loss]
+  - [calcium, found_in, fortified_dairy]
+  - [calcium, found_in, yogurt]
+  - [calcium, found_in, leafy_greens]
+  - [calcium, interacts_with, vitamin_d]
+  - [calcium, interacts_with, vitamin_k]
+
+  # Zinc
+  - [zinc, addresses, immune_support]
+  - [zinc, found_in, lean_meats]
+  - [zinc, found_in, nuts_seeds]
+  - [zinc, found_in, legumes]
+
+  # Vitamin C
+  - [vitamin_c, addresses, immune_support]
+  - [vitamin_c, found_in, citrus]
+  - [vitamin_c, found_in, berries]
+  - [vitamin_c, found_in, cruciferous_veg]
+  - [vitamin_c, interacts_with, iron]
+
+  # Omega-3
+  - [omega_3, addresses, cardiovascular_risk]
+  - [omega_3, addresses, low_mood]
+  - [omega_3, addresses, cognitive_decline_risk]
+  - [omega_3, addresses, joint_pain, "anti-inflammatory"]
+  - [omega_3, found_in, fatty_fish]
+  - [omega_3, found_in, nuts_seeds, "ALA form, lower conversion to EPA/DHA"]
+
+  # Potassium
+  - [potassium, addresses, hypertension_risk]
+  - [potassium, found_in, leafy_greens]
+  - [potassium, found_in, legumes]
+  - [potassium, found_in, berries]
+
+  # Fiber
+  - [fiber, addresses, gut_health]
+  - [fiber, addresses, t2_diabetes_risk]
+  - [fiber, addresses, cardiovascular_risk]
+  - [fiber, addresses, weight_loss_goal, "supports satiety"]
+  - [fiber, found_in, whole_grains]
+  - [fiber, found_in, legumes]
+  - [fiber, found_in, leafy_greens]
+  - [fiber, found_in, berries]
+
+  # Protein
+  - [protein, addresses, weight_loss_goal, "preserves lean mass during deficit"]
+  - [protein, found_in, lean_meats]
+  - [protein, found_in, eggs]
+  - [protein, found_in, legumes]
+  - [protein, found_in, yogurt]
+  - [protein, found_in, fatty_fish]
+
+  # Vitamin K
+  - [vitamin_k, addresses, bone_density_loss]
+  - [vitamin_k, found_in, leafy_greens]
+  - [vitamin_k, found_in, cruciferous_veg]
+  - [vitamin_k, interacts_with, calcium]
+  - [vitamin_k, interacts_with, vitamin_d]
+
+  # Selenium
+  - [selenium, found_in, nuts_seeds, "particularly Brazil nuts"]
+  - [selenium, found_in, fatty_fish]
+
+  # Iodine
+  - [iodine, measured_by, tsh, "indirectly; TSH reflects thyroid status"]
+
+  # Choline
+  - [choline, found_in, eggs]
+  - [choline, addresses, cognitive_decline_risk]
+
+  # Probiotics
+  - [probiotics, addresses, gut_health]
+  - [probiotics, found_in, yogurt]
+
+  # Melatonin
+  - [melatonin, addresses, poor_sleep, "short-term, primarily for shifted sleep timing"]
+
+  # Condition relationships
+  - [poor_sleep, risk_factor_for, t2_diabetes_risk]
+  - [poor_sleep, risk_factor_for, weight_loss_goal, "negatively"]
+  - [poor_sleep, risk_factor_for, cardiovascular_risk]
+  - [insulin_resistance, risk_factor_for, t2_diabetes_risk]
+  - [hypertension_risk, risk_factor_for, cardiovascular_risk]
+  - [bone_density_loss, risk_factor_for, joint_pain]
+
+  # Exercise
+  - [aerobic_exercise, addresses, cardiovascular_risk]
+  - [aerobic_exercise, addresses, weight_loss_goal]
+  - [aerobic_exercise, addresses, hypertension_risk]
+  - [aerobic_exercise, addresses, t2_diabetes_risk]
+  - [aerobic_exercise, addresses, low_mood]
+  - [resistance_training, addresses, bone_density_loss]
+  - [resistance_training, addresses, weight_loss_goal, "preserves lean mass"]
+  - [resistance_training, addresses, insulin_resistance]
+  - [resistance_training, addresses, joint_pain, "strengthens supporting musculature"]
+  - [flexibility_work, addresses, lower_back_pain]
+  - [flexibility_work, addresses, joint_pain]
+  - [walking, addresses, cardiovascular_risk]
+  - [walking, addresses, weight_loss_goal]
+  - [walking, addresses, low_mood]
+  - [hiit, addresses, t2_diabetes_risk]
+  - [hiit, contraindicated_with, joint_pain, "high-impact may aggravate"]
+
+  # Biomarker links to conditions
+  - [hba1c, measured_by, t2_diabetes_risk, "elevated A1c indicates risk/diagnosis"]
+  - [ldl_cholesterol, measured_by, cardiovascular_risk]
+  - [triglycerides, measured_by, cardiovascular_risk]
+  - [hdl_cholesterol, measured_by, cardiovascular_risk, "low HDL = elevated risk"]
+  - [fasting_glucose, measured_by, t2_diabetes_risk]

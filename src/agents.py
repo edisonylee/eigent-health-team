@@ -11,6 +11,7 @@ from camel.models import ModelFactory
 from camel.toolkits import FunctionTool, SearchToolkit
 from camel.types import ModelPlatformType, ModelType
 
+from .graph_rag import search_health_graph as _graph_search
 from .rag import search_health_kb as _kb_search
 from .schema import SafetyReview
 
@@ -35,26 +36,56 @@ def _model(stream: bool = False):
     )
 
 
-RESEARCHER_PROMPT = """You are a health researcher with two retrieval tools:
+RESEARCHER_PROMPT = """You are a health researcher.
 
-  • `search_health_kb(query)` — a curated knowledge base of authoritative
-    sources (NIH ODS supplement fact sheets, CDC guidelines on physical
-    activity, sleep, nutrition, AHA, USDA Dietary Guidelines, Mayo Clinic).
-    PREFER THIS for general guidelines, dietary/exercise/sleep recommendations,
-    and common-supplement evidence. It is more trustworthy than the web.
+**Always structure your final response as exactly two H2 sections:**
 
-  • `search_duckduckgo(query)` — the open web. Use ONLY when the KB is
-    unlikely to cover the question: product names, brand-specific info,
-    recent news, very niche conditions, current studies.
+```
+## Reasoning
+- 3–5 short bullets — what you searched for, what you found, what you
+  ruled out, and why.
 
-For every recommendation, cite the source URL you got it from. If neither
-tool returns useful results, say so rather than speculating. You do not
-diagnose. Output a bulleted research brief. This is educational information,
-not medical advice."""
+## Conclusion
+[your bulleted research brief]
+```
+
+You have THREE retrieval tools and pick per question:
+
+  • `query_health_graph(query)` — a curated knowledge graph of nutrients,
+    conditions, biomarkers, foods, and exercise classes with typed
+    relationships (`addresses`, `found_in`, `measured_by`, `interacts_with`,
+    `risk_factor_for`, `contraindicated_with`). PREFER THIS for RELATIONAL
+    questions: "what foods contain Vitamin D", "what biomarkers measure
+    iron status", "what nutrients interact with calcium".
+
+  • `search_health_kb(query)` — a curated vector knowledge base of
+    authoritative source pages (NIH ODS fact sheets, CDC, AHA, USDA, Mayo
+    Clinic). PREFER THIS for GUIDELINE questions: "how much vitamin D is
+    recommended for adults", "what's the AHA exercise guidance".
+
+  • `search_duckduckgo(query)` — the open web. Use ONLY for fresh or
+    specific things the curated sources won't have: product names,
+    brand-specific info, very recent studies, niche conditions.
+
+For every recommendation, cite the source URL or entity name. If no tool
+returns useful results, say so rather than speculating. You do not
+diagnose. This is educational information, not medical advice."""
 
 ASSESSOR_PROMPT = """You are a health assessor.
-Given a person's profile and a research brief, name 3–4 high-impact, realistic
-focus areas for this specific person. For EACH focus area, output:
+
+**Always structure your final response as exactly two H2 sections:**
+
+```
+## Reasoning
+- 3–5 short bullets — which signals from the profile/research drove your
+  picks, which candidate focus areas you considered and ruled out, and
+  why these ones won.
+
+## Conclusion
+[the 3–4 focus areas, each with the structured rows below]
+```
+
+For EACH focus area, output:
   - **Area** — short label (e.g. "Daily movement")
   - **Why this person** — one sentence quoting something from their profile
   - **Current baseline** — best estimate of where they are now, with a
@@ -62,21 +93,58 @@ focus areas for this specific person. For EACH focus area, output:
   - **Target** — measurable change over the next 4–6 weeks, with numbers
     ("8,000 steps/day, two 25-min strength sessions/week")
   - **First concrete step** — one specific thing they can do today
+
 Be specific. No generic categories like "eat better" or "exercise more"
 without numbers. Do not diagnose conditions. This is educational, not
 medical advice."""
 
 SAFETY_PROMPT = """You are a careful health safety reviewer.
-Given a person's profile and the emerging plan, surface real risks, possible
-contraindications, and any red-flag symptoms that warrant prompt medical
-attention. Name specific concerns, not generic ones. Then give a verdict:
-'safe-to-follow', 'follow-with-caution', or 'consult-first'.
-Output: a list of risks, a list of things to discuss with a clinician, the
-verdict, and a one-line justification. You do not diagnose."""
+
+**Always structure your final response as exactly two H2 sections:**
+
+```
+## Reasoning
+- 3–5 short bullets — which parts of the profile triggered concern,
+  which risks you considered and dismissed (and why), and what drove the
+  final verdict.
+
+## Conclusion
+[risks list, consult-with-clinician list, verdict, one-line justification]
+```
+
+For the conclusion: surface real risks, possible contraindications, and any
+red-flag symptoms that warrant prompt medical attention. Name specific
+concerns, not generic ones. Then give a verdict: 'safe-to-follow',
+'follow-with-caution', or 'consult-first'.
+
+If lab values are provided in the profile:
+  - Any biomarker explicitly flagged 'low' or 'high' MUST appear as a
+    consult-with-clinician item, named by its biomarker and value.
+  - If a planned recommendation could worsen a flagged biomarker (e.g.
+    iron supplementation when ferritin is already high), flag it as a risk.
+  - Multiple out-of-range biomarkers should push the verdict toward
+    'follow-with-caution' or 'consult-first'.
+
+You do not diagnose."""
 
 PLAN_PROMPT = """You are a health plan writer. Given the research, the
 assessment, and the safety review, write a tight, personalized health plan
-in markdown. Two non-negotiable rules:
+in markdown.
+
+**Structure your final response as exactly two H2 sections at the very top
+of your output, in this order:**
+
+```
+## Reasoning
+- 3–5 short bullets — which research signals you prioritized, which focus
+  areas you weighted heaviest in the plan, which safety items shaped your
+  recommendations, and what you deliberately left out.
+
+## Conclusion
+[the full plan, starting with the H1 sections defined below]
+```
+
+Three non-negotiable rules for the Conclusion:
 
   1. **Personalization.** Every recommendation begins with a clause that
      references the profile — "Since you mentioned …" or "Given your …".
@@ -85,8 +153,12 @@ in markdown. Two non-negotiable rules:
   2. **Quantification.** Every action has a number — minutes, reps, sets,
      ounces, hours, days per week, or steps. Replace verbs like "increase",
      "improve", "be active" with concrete targets.
+  3. **Lab-grounded.** If lab values were provided in the profile, at least
+     two Focus Areas MUST reference at least one biomarker by name and
+     value (e.g. "Given your Vitamin D at 18 ng/mL (low) …"). The Nutrition
+     and What-to-Avoid sections should also cite biomarkers where relevant.
 
-Sections, in this exact order:
+Conclusion sections, in this exact order:
 
   # Your Profile
   One short paragraph summarizing what you heard, in second person.
@@ -145,17 +217,34 @@ def _kb_tool_fn(query: str, k: int = 5) -> list[dict]:
     return [c.to_dict() for c in _kb_search(query, k=k)]
 
 
-# Module-level handle so the runner can wrap it with a tool-call emitter.
+def _graph_tool_fn(query: str, k: int = 5) -> list[dict]:
+    """query_health_graph — retrieves entities + 1-hop relationships.
+
+    Args:
+        query: Natural-language question or topic.
+        k: Number of top entities to return (default 5).
+
+    Returns:
+        A list of dicts: each entity with name, type, description, and a
+        list of typed edges (predicate, target_name, target_type, note).
+        Empty list if the graph is unavailable or no entities match.
+    """
+    return [e.to_dict() for e in _graph_search(query, k=k)]
+
+
+# Module-level handles so the runner can wrap them with tool-call emitters.
 search_health_kb = _kb_tool_fn
+query_health_graph = _graph_tool_fn
 
 
 def health_researcher_agent(stream: bool = False) -> ChatAgent:
     web = FunctionTool(SearchToolkit().search_duckduckgo)
     kb = FunctionTool(search_health_kb)
+    graph = FunctionTool(query_health_graph)
     return ChatAgent(
         system_message=RESEARCHER_PROMPT,
         model=_model(stream),
-        tools=[kb, web],
+        tools=[graph, kb, web],
     )
 
 

@@ -23,6 +23,7 @@ interface WorkerNodeData {
   cost: number;
   kbCount: number;
   webCount: number;
+  graphCount: number;
 }
 
 function WorkerNodeImpl({ data }: NodeProps<WorkerNodeData>) {
@@ -37,6 +38,7 @@ function WorkerNodeImpl({ data }: NodeProps<WorkerNodeData>) {
 
   const tokens = data.promptTokens + data.completionTokens;
   const hasUsage = tokens > 0;
+  const hasReasoning = data.text.toLowerCase().includes("## reasoning");
 
   return (
     <div
@@ -55,8 +57,16 @@ function WorkerNodeImpl({ data }: NodeProps<WorkerNodeData>) {
         </span>
       </div>
 
-      {(data.kbCount > 0 || data.webCount > 0) && (
+      {(data.kbCount > 0 ||
+        data.webCount > 0 ||
+        data.graphCount > 0 ||
+        hasReasoning) && (
         <div className="mt-1 flex flex-wrap gap-1">
+          {data.graphCount > 0 && (
+            <span className="inline-flex items-center gap-1 rounded bg-teal-100 px-1.5 py-0.5 text-[10px] text-teal-800">
+              🕸️ {data.graphCount} graph
+            </span>
+          )}
           {data.kbCount > 0 && (
             <span className="inline-flex items-center gap-1 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] text-violet-800">
               📚 {data.kbCount} KB
@@ -65,6 +75,11 @@ function WorkerNodeImpl({ data }: NodeProps<WorkerNodeData>) {
           {data.webCount > 0 && (
             <span className="inline-flex items-center gap-1 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] text-sky-800">
               🌐 {data.webCount} web
+            </span>
+          )}
+          {hasReasoning && (
+            <span className="inline-flex items-center gap-1 rounded bg-fuchsia-100 px-1.5 py-0.5 text-[10px] text-fuchsia-800">
+              💭 reasoning
             </span>
           )}
         </div>
