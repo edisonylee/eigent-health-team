@@ -25,7 +25,7 @@ import networkx as nx
 import numpy as np
 import yaml
 
-from .rag import embedder
+from .rag import _embed_lock, embedder
 
 GRAPH_FILE = pathlib.Path(__file__).resolve().parent.parent / "data" / "health_graph.yaml"
 
@@ -111,7 +111,8 @@ def _load() -> tuple[nx.MultiDiGraph, dict[str, np.ndarray], list[str]]:
     model = embedder()
     ids = list(g.nodes)
     texts = [_entity_text(g.nodes[nid]) for nid in ids]
-    vectors = model.encode(texts, normalize_embeddings=True)
+    with _embed_lock:
+        vectors = model.encode(texts, normalize_embeddings=True)
     embs: dict[str, np.ndarray] = {ids[i]: vectors[i] for i in range(len(ids))}
     return g, embs, ids
 
@@ -164,7 +165,8 @@ def search_health_graph(query: str, k: int = 5) -> list[GraphEntity]:
         return []
     try:
         g, embs, ids = _load()
-        q = embedder().encode(query, normalize_embeddings=True)
+        with _embed_lock:
+            q = embedder().encode(query, normalize_embeddings=True)
         scored = sorted(
             ((float(np.dot(q, embs[nid])), nid) for nid in ids),
             key=lambda x: x[0],

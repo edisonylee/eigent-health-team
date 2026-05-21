@@ -15,6 +15,7 @@ from __future__ import annotations
 import os
 import pathlib
 import shutil
+import threading
 from dataclasses import asdict, dataclass
 from functools import lru_cache
 from typing import List
@@ -76,9 +77,18 @@ def _maybe_seed_from_bundle(target: pathlib.Path) -> None:
         pass
 
 
+# PyTorch's MPS (Apple Metal) backend is NOT thread-safe — its shader
+# pipeline cache corrupts under concurrent access and segfaults the whole
+# process (SIGSEGV in MetalShaderLibrary::getLibraryPipelineState). We embed
+# from multiple daemon threads (entity extraction, profile synthesis) and
+# in-process during Workforce runs, so pin to CPU and serialize encode calls.
+# CPU inference for a 384-dim MiniLM over a handful of chunks is sub-second.
+_embed_lock = threading.Lock()
+
+
 @lru_cache(maxsize=1)
 def embedder() -> SentenceTransformer:
-    return SentenceTransformer(EMBED_MODEL_NAME)
+    return SentenceTransformer(EMBED_MODEL_NAME, device="cpu")
 
 
 @lru_cache(maxsize=1)
@@ -99,7 +109,8 @@ def _collection():
 
 
 def embed(text: str) -> list[float]:
-    return embedder().encode(text, normalize_embeddings=True).tolist()
+    with _embed_lock:
+        return embedder().encode(text, normalize_embeddings=True).tolist()
 
 
 def search_health_kb(query: str, k: int = 5) -> List[Chunk]:
