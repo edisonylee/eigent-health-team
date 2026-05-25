@@ -44,10 +44,21 @@ export default function Layout() {
   const onboardingNeeded =
     status !== undefined && status.has_usable_backend === false;
 
+  // In the Electron shell the native title bar is hidden, so the header
+  // doubles as the window drag handle. Pad the left so the HealthOS link
+  // clears the macOS traffic lights; in a browser there are none, so skip it.
+  const isElectron =
+    typeof navigator !== "undefined" && /electron/i.test(navigator.userAgent);
+
   return (
     <div className="min-h-screen bg-cloud-canvas text-ink-black">
-      <header className="sticky top-0 z-30 border-b border-frost-gray bg-cloud-canvas/85 backdrop-blur-md">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-6 py-3">
+      <header className="drag-region sticky top-0 z-30 border-b border-frost-gray bg-cloud-canvas/85 backdrop-blur-md">
+        <div
+          className={
+            "mx-auto flex max-w-5xl items-center justify-between gap-3 px-6 py-3" +
+            (isElectron ? " pl-20" : "")
+          }
+        >
           <Link
             to="/today"
             className="text-[15px] font-semibold tracking-tight text-ink-black"

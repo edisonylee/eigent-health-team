@@ -129,6 +129,23 @@ body {
   color: var(--color-silver-mist);
 }
 
+/* Electron frameless window (titleBarStyle: "hiddenInset") — the native
+   title bar is hidden, so nothing is draggable until we opt a region back in.
+   Mark the header as the drag handle, then exempt its interactive controls so
+   clicks still land. Browsers ignore -webkit-app-region, so this is a no-op
+   outside the desktop shell. */
+.drag-region {
+  -webkit-app-region: drag;
+}
+.drag-region a,
+.drag-region nav,
+.drag-region button,
+.drag-region input,
+.drag-region textarea,
+.drag-region [role="button"] {
+  -webkit-app-region: no-drag;
+}
+
 /* Form control polish. */
 input::placeholder,
 textarea::placeholder {
